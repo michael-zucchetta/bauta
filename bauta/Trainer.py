@@ -84,10 +84,12 @@ class Trainer():
 
     def loadModel(self):
         mask_detector_model = None
-        if self.reset_model:
-            mask_detector_model = Model(len(self.config.classes), 4, 7, 8)
-        else:
+        if not self.reset_model:
             mask_detector_model = self.environment.loadModel(self.environment.best_model_file)
+
+        if self.reset_model or mask_detector_model is None:
+            # incase no model is stored or in case the user wants to reset it
+            mask_detector_model = Model(len(self.config.classes), 4, 7, 8)
         self.log(mask_detector_model)
         return mask_detector_model
 

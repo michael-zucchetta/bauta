@@ -1,3 +1,4 @@
+import logging
 import sys, os
 import torch
 import traceback
@@ -12,16 +13,24 @@ class Environment():
             error_message = f"Data path '{data_path}' not found."
             #TODO: check all subfolders are in place
             raise Exception(error_message)
-        self.backgrounds_path = os.path.join(self.data_path, "datasets/images/backgrounds/")
+        self.backgrounds_path = os.path.join(self.data_path, "dataset/augmentation/backgrounds/")
         self.models_path = os.path.join(self.data_path, "models/")
-        self.objects_path = os.path.join(self.data_path, "datasets/images/objects/")
+        self.objects_path = os.path.join(self.data_path, "dataset/augmentation/objects/")
         self.best_model_file = "model.backup"
         self.input_width  = 512
         self.input_height = 512
         self.background_mask_index = 0
-        self.augmentation_cache_path = os.path.join(self.data_path, "datasets/images/augment")
+        self.augmentation_cache_path = os.path.join(self.data_path, "dataset/images/augment")
+        self.logs_path = f'{data_path}/../logs'
 
-    def loadModelFromPath(self, path ):
+    def getLogger(self, class_name):
+        if not os.path.exists(self.logs_path):
+            os.makedirs(self.logs_path)
+        handlers = [logging.FileHandler(f'{self.logs_path}/bauta.log'), logging.StreamHandler()]
+        logging.basicConfig(level=logging.INFO, handlers=handlers)
+        return logging.getLogger(class_name)
+
+    def loadModelFromPath(self, path):
         return torch.load(path, map_location=lambda storage, loc: storage)
 
     def saveModel(self, mask_detector_model, name):
@@ -35,6 +44,10 @@ class Environment():
         else:
             sys.stderr.write(f"Model file not found in {path}.")
             return None
+
+    def makeDirIfNotExists(self, path):
+        if not os.path.exists(path):
+            os.makedirs(path)
 
     def tryToRun(self, method, validate_result, max_attempts=10):
         current_attempt = 0

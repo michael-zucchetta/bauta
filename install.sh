@@ -13,6 +13,7 @@ source activate bauta
 conda install --yes pytorch torchvision -c pytorch
 conda install --yes click
 conda install --yes pyyaml
+conda install --yes requests
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     machine=Linux;;
@@ -82,6 +83,4 @@ cd ..
 #
 # INSTALL BAUTA ITSELF
 #
-BAUTA_HOME="`dirname \"$0\"`"
-cd $BAUTA_HOME
 python setup.py install

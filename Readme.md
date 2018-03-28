@@ -63,14 +63,32 @@ Now it's time to move your images to the right folders.
 You will have to first split the images into test and training set.
 
 and then create the following folders:
-`DATA_FOLDER/dataset/augmentation/objects/test/dog`
-`DATA_FOLDER/dataset/augmentation/objects/train/dog`
-`DATA_FOLDER/dataset/augmentation/objects/test/dog`
-`DATA_FOLDER/dataset/augmentation/objects/train/cat`
-`DATA_FOLDER/dataset/augmentation/backgrounds/test`
-`DATA_FOLDER/dataset/augmentation/backgrounds/train`
+
+* `DATA_FOLDER/dataset/augmentation/objects/test/dog`
+
+* `DATA_FOLDER/dataset/augmentation/objects/train/dog`
+
+* `DATA_FOLDER/dataset/augmentation/objects/test/dog`
+
+* `DATA_FOLDER/dataset/augmentation/objects/train/cat`
+
+* `DATA_FOLDER/dataset/augmentation/backgrounds/test`
+
+* `DATA_FOLDER/dataset/augmentation/backgrounds/train`
 
 And add your images into them.
+
+# Optional questions for generating the dataset
+During the script execution, a few questions will be asked:
+
+* The Base path where all the data will be stored
+
+* The path with the CSV files containing the list of images (optional).
+Only the first two columns will be considered: the first will be used as id, the second as image url (if the CSV contains only one column, then, it will use the index as id)
+
+* If the path of the CSVs file will not be provided, the class names will be asked
+
+* The path of the CSVs with the list of background URLs (optional)
 
 
 ## Training
