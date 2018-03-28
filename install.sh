@@ -14,6 +14,7 @@ conda install --yes pytorch torchvision -c pytorch
 conda install --yes click
 conda install --yes pyyaml
 conda install --yes requests
+conda install --yes coverage
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     machine=Linux;;

@@ -27,25 +27,21 @@ class BoundingBoxExtractor(nn.Module):
         mask_binary = (mask >= threshold).float()
         edges = mask_binary
         edges = (edges > 0.5).float()
-        y_coordinates = self.y_coordinate_extractor(edges).view(-1, self.scaled_input_height * self.scaled_input_width) - 1
-        x_coordinates = self.x_coordinate_extractor(edges).view(-1, self.scaled_input_height * self.scaled_input_width) - 1
-        y_max, _ = torch.max(y_coordinates, -1)
-        x_max, _ = torch.max(x_coordinates, -1)
-        x_max = x_max + (x_max == -1).float()
-        y_max = y_max + (y_max == -1).float()
-        y_max_expanded = y_max.view(-1, 1).expand(y_max.size()[0], self.scaled_input_height * self.scaled_input_width)
-        y_set_max_to_disabled = torch.mul((y_coordinates == -1).float(), y_max_expanded)
-        x_max_expanded = x_max.view(-1, 1).expand(x_max.size()[0], self.scaled_input_height * self.scaled_input_width)
-        x_set_max_to_disabled = torch.mul((x_coordinates == -1).float(), x_max_expanded)
-        y_min, _ = torch.min(y_coordinates + y_set_max_to_disabled, -1)
-        x_min, _ = torch.min(x_coordinates + x_set_max_to_disabled, -1)
-        bounding_boxes_scaled = torch.cat((x_min.view(-1,1), y_min.view(-1,1), x_max.view(-1,1), y_max.view(-1,1)), 1)
-        bounding_boxes = torch.cat((x_min.view(-1,1) * self.scale, y_min.view(-1,1) * self.scale, x_max.view(-1,1) * self.scale, y_max.view(-1,1) * self.scale), 1)
-        return bounding_boxes_scaled, bounding_boxes, mask_binary, edges
+        edges = torch.split(edges, 1, dim=1)
+        y_coordinates = torch.cat([self.y_coordinate_extractor(edges[edge]).view(-1, 1, self.scaled_input_height * self.scaled_input_width) for edge in range(len(edges))], 1)
+        x_coordinates = torch.cat([self.x_coordinate_extractor(edges[edge]).view(-1, 1, self.scaled_input_height * self.scaled_input_width) for edge in range(len(edges))], 1)
+        x_min = torch.min(x_coordinates, -1)[0].unsqueeze(2)
+        y_min = torch.min(y_coordinates, -1)[0].unsqueeze(2)
+        x_max = torch.max(x_coordinates, -1)[0].unsqueeze(2)
+        y_max = torch.max(y_coordinates, -1)[0].unsqueeze(2)
+        object_found = (y_max > y_min) * (x_max > x_min)
+        bounding_boxes_scaled = torch.cat((x_min, y_min, x_max, y_max), 2)
+        bounding_boxes = bounding_boxes_scaled * self.scale
+        return object_found, bounding_boxes_scaled, bounding_boxes, mask_binary, edges
 
     def forward(self, mask):
-        bounding_boxes_scaled, bounding_boxes, mask_binary, edges = self.getBoundingBoxes(mask)
-        return bounding_boxes_scaled, bounding_boxes
+        object_found, bounding_boxes_scaled, bounding_boxes, mask_binary, edges = self.getBoundingBoxes(mask)
+        return object_found, bounding_boxes_scaled, bounding_boxes
 
     def createXCoordinateExtractor(self, columns):
         y_coordinate_extractor = nn.Conv2d(1, columns, (1, columns))

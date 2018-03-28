@@ -10,12 +10,11 @@ import os
 @click.option('--num_epochs', default=10000, help='Number of epochs.')
 @click.option('--batch_size', default=16, help='Batch size.')
 @click.option('--learning_rate', default= 0.0001, help='Learning rate')
-@click.option('--use_bounding_box', default=False, help='Use bounding box cropping')
 @click.option('--gpu', default=0, help='GPU index')
-def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, use_bounding_box, gpu):
+def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu):
     if not reset_model:
         reset_model_classes = None
-    trainer = Trainer(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu, use_bounding_box)
+    trainer = Trainer(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu)
     trainer.train()
 
 if __name__ == '__main__':

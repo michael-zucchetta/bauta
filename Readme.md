@@ -1,11 +1,12 @@
 # Bauta
-Bauta is a Deep Neural network that implements state-of-the-art research
+Bauta is an easy-to-use toolset and python library to build image segmentation
+systems. Its main aim is productivity and end-to-end capabilities.
+
+Bauta is based on a Deep Neural network that implements state-of-the-art research
 for image segmentation using *data augmentation*.
 
 (TODO: List research papers)
 
-Its main aim is to be an easy-to-use tool and library that allow image
-segmentation at scale with minimum effort.
 
 ## Requirements
 The library supports Ubuntu Linux and Mac OS, and both CPU and GPU.
@@ -34,21 +35,33 @@ conda activate bauta
 ```
 
 ## Dataset
-First step is to create a dataset.
-The dataset will contain the following elements:
+First you will have to create a dataset and for that you will need either
+paths to images or URLs to them.
+The dataset is composed of two types of images:
 - **Objects**: these are png images with transparent background of the different
 classes you support. In case of a dataset of pets, you will have to provide
 images for dogs and cats with transparent backgrounds
-- **Backgrouds**: a list of available backgrounds. In the case of a dataset of
-pets that would be photos of the street and photos of a backyard.
+- **Backgrounds**: just images of backgrounds you expect to have the objects on.
+In the case of a dataset of pets that would be photos of the street and photos of a backyard.
 
-Once you have the data you should run the following script
+
+Once you have the images you will have to create a file (`.txt` or `.csv`)
+for each class consisting of a carry-return list of either paths or URLs
+of the images. In the pets example, you will have three files:
+```
+background.csv
+dog.csv
+cat.csv
+```
+
+Once you have the csv files in a single folder you will have to run
 ```
 ./setup_dataset
 ```
 
-This script will create a toy dataset. The dataset configuration will be in
-the file `DATA_FOLDER/config.yaml` and contains a sigle attribute with the
+This script will create the a `data path` with seveal subfolders where the dataset and models are stored
+as well as downloading the images and splitting them into test and train.
+The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` and contains a single attribute with the
 lists of classes.
 
 For example, say that we have a dataset of pets supporting the class `dog`
@@ -59,24 +72,16 @@ classes:
   - dog
 ```
 
-Now it's time to move your images to the right folders.
-You will have to first split the images into test and training set.
-
-and then create the following folders:
-
-* `DATA_FOLDER/dataset/augmentation/objects/test/dog`
-
-* `DATA_FOLDER/dataset/augmentation/objects/train/dog`
-
-* `DATA_FOLDER/dataset/augmentation/objects/test/dog`
-
-* `DATA_FOLDER/dataset/augmentation/objects/train/cat`
-
-* `DATA_FOLDER/dataset/augmentation/backgrounds/test`
-
-* `DATA_FOLDER/dataset/augmentation/backgrounds/train`
-
-And add your images into them.
+The script will also create the following folders and will fill them
+with the train and test split.
+```
+DATA_FOLDER/dataset/augmentation/objects/test/dog
+DATA_FOLDER/dataset/augmentation/objects/train/dog
+DATA_FOLDER/dataset/augmentation/objects/test/dog
+DATA_FOLDER/dataset/augmentation/objects/train/cat
+DATA_FOLDER/dataset/augmentation/backgrounds/test
+DATA_FOLDER/dataset/augmentation/backgrounds/train
+```
 
 # Optional questions for generating the dataset
 During the script execution, a few questions will be asked:
@@ -95,10 +100,10 @@ Only the first two columns will be considered: the first will be used as id, the
 To start the first training run (changing the *DATA_FOLDER* for the actual
   full path of your dataset).
 ```
-python train.py --data_path=DATA_FOLDER --reset_model=y  --batch_size=4
+python train.py --data_path=DATA_FOLDER --reset_model=y --batch_size=4
 ```
 
-For next time you try to train, you'll have to reuse the model and thus
+For next time you try to train, you will have to reuse the model and thus
 ```
-python train.py --data_path=DATA_FOLDER   --batch_size=4
+python train.py --data_path=DATA_FOLDER --batch_size=4
 ```

@@ -1,19 +1,23 @@
 import math
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
 import os, random, string
-from torch.autograd import Variable
 import sys
 import numpy as np
 import cv2
 import yaml
-from bauta.Environment import Environment
-from bauta.BoundingBox import BoundingBox
-from bauta.ImageUtils import ImageUtils
-from bauta.DatasetConfiguration import DatasetConfiguration
-from bauta.ImageInfo import ImageInfo
 import traceback
 import operator, functools
+
+import torch
+from torch.autograd import Variable
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms, utils
+
+from bauta.ImageUtils import ImageUtils
+from bauta.Environment import Environment
+from bauta.BoundingBox import BoundingBox
+from bauta.DatasetConfiguration import DatasetConfiguration
+from bauta.ImageInfo import ImageInfo
+
 class DataAugmentationDataset(Dataset):
 
     def __init__(self, is_train, data_path, visual_logging=False, seed=None):
@@ -56,24 +60,21 @@ class DataAugmentationDataset(Dataset):
         return image
 
     def randomObject(self, index):
-        random_class_index = np.random.randint(0, len(self.config.classes), 1)[0]
+        random_class_index = np.random.randint(len(self.config.classes), size=1)[0] #TODO: always picks the same!
         random_class = self.config.classes[random_class_index]
         object_index = index % len(self.config.objects[random_class])
-        object = cv2.imread(self.config.objects[random_class][object_index], cv2.IMREAD_UNCHANGED)
-        object = self.imageWithinInputDimensions(object)
-        return random_class_index, object
+        current_object = cv2.imread(self.config.objects[random_class][object_index], cv2.IMREAD_UNCHANGED)
+        current_object = self.imageWithinInputDimensions(current_object)
+        return random_class_index, current_object
 
     def __getitem__(self, index, max_attempts=10):
-        class_index, object = self.randomObject(index)
+        class_index, current_object = self.randomObject(index)
+        objects_in_image = torch.FloatTensor(len(self.config.classes) + 1)
+        objects_in_image.zero_()
+        objects_in_image[class_index + 1] = 1
         background = self.randomBackground()
-        image, mask = self.image_utils.pasteRGBAimageIntoRGBimage(object, background, 0, 0)
-        mask_all_classes = self.image_utils.blankImage(self.enviroment.input_width, self.enviroment.input_height, len(self.config.classes) + 1)
-        mask_all_classes[:, :, class_index + 1 : class_index + 1] = mask[:, :]
-        mask_all_classes[:, :, self.enviroment.background_mask_index:self.enviroment.background_mask_index] = 1 - mask[:,:]
-        if self.visual_logging:
-            cv2.imshow(f'background', background)
-            cv2.imshow(f'object', object)
-            cv2.imshow(f'object_in_background', object_in_background)
-            cv2.imshow(f'mask', mask)
-            cv2.waitKey(0)
-        return transforms.ToTensor()(image), transforms.ToTensor()(mask_all_classes)
+        input_image, target_mask = self.image_utils.pasteRGBAimageIntoRGBimage(current_object, background, 0, 0)
+        target_mask_all_classes = self.image_utils.blankImage(self.enviroment.input_width, self.enviroment.input_height, len(self.config.classes) + 1)
+        target_mask_all_classes[:, :, class_index + 1 : class_index + 2] = target_mask[:, :]
+        target_mask_all_classes[:, :, self.enviroment.background_mask_index:self.enviroment.background_mask_index + 1] = 255 - target_mask[:,:]
+        return transforms.ToTensor()(input_image), transforms.ToTensor()(target_mask_all_classes), objects_in_image

@@ -38,7 +38,7 @@ class Model(nn.Module):
         self.fully_connected_1 = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks, filter_banks * 5, filter_size, 1)
         self.fully_connected_2 = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks * 5, self.classes, filter_size, 1)
 
-        self.refine = self.createDilatedConvolutionPreservingSpatialDimensions((filter_banks * 2) + classes + 1, filter_banks, filter_size, 1)
+        self.refine = self.createDilatedConvolutionPreservingSpatialDimensions(((filter_banks * 2) * (classes + 1)) + (classes + 1), filter_banks, filter_size, 1)
 
         self.upsample = nn.Upsample(scale_factor=self.scale, mode='nearest')
 
@@ -68,13 +68,14 @@ class Model(nn.Module):
         mask_scaled = F.sigmoid(self.fully_connected_2(fully_connected_output_1))
         bounding_boxes_scaled = None
         bounding_boxes = None
+        object_found = None
         input_width = input.size()[3]
         input_height = input.size()[2]
         bounding_box_extractor = BoundingBoxExtractor(input_width, input_height, self.scale)
         if isinstance(input.data, (torch.cuda.FloatTensor)):
             bounding_box_extractor.cuda(input.data.get_device())
         if use_bounding_box:
-            bounding_boxes_scaled, bounding_boxes = bounding_box_extractor(mask_scaled)
+            object_found, bounding_boxes_scaled, bounding_boxes = bounding_box_extractor(mask_scaled)
         else:
             batch_size = input.size()[0]
             zeros = input.data.new(batch_size).zero_().view(-1, 1)
@@ -85,22 +86,36 @@ class Model(nn.Module):
         roi_align_scaled = RoIAlign(bounding_box_extractor.scaled_input_height, bounding_box_extractor.scaled_input_width)
         roi_align = RoIAlign(bounding_box_extractor.input_height, bounding_box_extractor.input_width)
         boxes_index = Variable(torch.from_numpy(np.arange(bounding_boxes_scaled.size()[0])).int(), requires_grad=False)
+        boxes_index_all_masks = Variable(torch.from_numpy(np.arange(bounding_boxes_scaled.size()[0] * bounding_boxes_scaled.size()[1])).int(), requires_grad=False)
         if isinstance(input.data, (torch.cuda.FloatTensor)):
             boxes_index = boxes_index.cuda(input.data.get_device())
+            boxes_index_all_masks = boxes_index_all_masks.cuda(input.data.get_device())
             roi_align_scaled = roi_align_scaled.cuda(input.data.get_device())
             roi_align = roi_align.cuda(input.data.get_device())
             bounding_boxes = bounding_boxes.cuda(input.data.get_device())
             bounding_boxes_scaled = bounding_boxes_scaled.cuda(input.data.get_device())
         embeddings_upsampled = self.upsample(embeddings)
         mask_scaled_upsampled = self.upsample(mask_scaled)
-        embeddings_bounding_box_upsampled = roi_align(embeddings_upsampled, bounding_boxes, boxes_index)
-        mask_scaled_bounding_box_upsampled = roi_align(mask_scaled_upsampled, bounding_boxes, boxes_index)
-        initial_filtering_bounding_box = roi_align(initial_filtering, bounding_boxes, boxes_index)
+        embeddings_bounding_box_upsampled = Model.applyRoiAlignCombined(roi_align, embeddings_upsampled, bounding_boxes, boxes_index)
+        initial_filtering_bounding_box =  Model.applyRoiAlignCombined(roi_align, initial_filtering, bounding_boxes, boxes_index)
+        mask_scaled_bounding_box_upsampled = Model.applyRoiAlign(roi_align, mask_scaled_upsampled, bounding_boxes, boxes_index_all_masks)
         embeddings = F.relu(self.refine(torch.cat([embeddings_bounding_box_upsampled, initial_filtering_bounding_box, mask_scaled_bounding_box_upsampled], 1)))
         embeddings = F.relu(self.fully_connected_1(embeddings))
         mask = F.sigmoid(self.fully_connected_2(embeddings))
 
-        return mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index
+        return object_found, mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index, boxes_index_all_masks
+
+    def applyRoiAlignCombined(roi_align, input, bounding_boxes, boxes_index):
+        bounding_boxes_per_object = torch.split(bounding_boxes, 1, dim=1)
+        rois = [roi_align(input, bounding_box_per_object.contiguous().view(-1, 4), boxes_index) for bounding_box_per_object in bounding_boxes_per_object]
+        return torch.cat(rois, 1)
+
+    def applyRoiAlign(roi_align, input, bounding_boxes, boxes_index):
+        input_redim = input.view(-1, 1, input.size()[2] ,input.size()[3])
+        bounding_boxes_redim = bounding_boxes.contiguous().view(-1, 4)
+        output = roi_align(input_redim, bounding_boxes_redim, boxes_index)
+        output = output.view(input.size()[0], input.size()[1], output.size()[2], output.size()[3])
+        return output
 
     def createDilatedConvolutionPreservingSpatialDimensions(self, input_filter_banks, output_filter_banks, filter_size, dilation_to_use):
         dilated_filter_size = filter_size + ( (filter_size - 1) * (dilation_to_use - 1) )

@@ -30,7 +30,9 @@ class ImageUtils():
         return rgb_image, mask
 
     def toNumpy(self, tensor):
-        return tensor.transpose(0, 2).transpose(0, 1).numpy()
+        if tensor.dim() == 2:
+            tensor = tensor.unsqueeze(0)
+        return tensor.transpose(0, 2).transpose(0, 1).cpu().numpy()
 
     def addWhitePaddingToKeepAspectRatioOfOriginalImageAndScaleToNeworkInputField(self, input_image_scaled, input_width, input_height, x_offset, y_offset):
         colours = len(cv2.split(input_image_scaled))
