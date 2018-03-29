@@ -1,9 +1,11 @@
 import csv
+import imagehash
+import itertools
 import os
+from PIL import Image
 import random
 from shutil import copyfile
-
-import itertools
+import uuid
 import urllib.request
 from urllib import parse
 
@@ -40,8 +42,8 @@ class DatasetRetriever():
                     self.retrieveImages(test_set, dataset_type='test')
             else:
                 for file_in_path in os.listdir(datasets_path):
-                    if is_csv_extension(os.path.splitext(datasets_path)[1]):
-                        (train_set, test_set) = self.readCsvAndSplit('{datasets_path}/{file_in_path}')
+                    if is_csv_extension(os.path.splitext(file_in_path)[1]):
+                        (train_set, test_set) = self.readCsvAndSplit(f'{datasets_path}/{file_in_path}')
                         self.retrieveImages(train_set, dataset_type='train')
                         self.retrieveImages(test_set, dataset_type='test')
         else:
@@ -77,15 +79,11 @@ class DatasetRetriever():
         try:
             with open(csv_file_path, 'r') as csv_file:
                 ids_and_images = list(csv.reader(csv_file))
-                if len(ids_and_images) > 0 and len(ids_and_images[0]) == 1:
-                  # if the csv file has only 1 element per row, we're assuming it's the image url, and we are adding its index
-                  ids_and_images = [(index, image[0]) for (index, image) in enumerate(ids_and_images) if len(image) > 0]
 
                 if len(ids_and_images) > 0 and len(ids_and_images[0]) > 2:
                   # if the csv contains extra columns
                   ids_and_images = [row[0:2] for row in ids_and_images]
 
-                #if split:
                 random.shuffle(ids_and_images)
                 dataset_size = len(ids_and_images)
                 test_size = int(dataset_size * self.split_test_proportion)
@@ -105,11 +103,20 @@ class DatasetRetriever():
             base_path = f'{self.env.objects_path}{dataset_type}/{class_name}'
         if not os.path.exists(base_path):
             os.makedirs(base_path)
-        for (image_id, image_url) in ids_and_images:
+        for id_and_image_tuple in ids_and_images:
+            if len(id_and_image_tuple) == 1:
+                image_url = id_and_image_tuple[0]
+                image_id = None
+            else:
+                (image_id, image_url) = id_and_image_tuple
             parsed_url = parse.urlparse(image_url)
             image_url_path = parsed_url.path
             image_ext = os.path.splitext(image_url_path)[1]
-            local_file_path = f'{base_path}/{image_id}{image_ext}'
+            if image_id is not None:
+                local_file_path = f'{base_path}/{image_id}{image_ext}'
+            else:
+                # in case no id is specified, a temporary file will be created
+                local_file_path = f'/tmp/{uuid.uuid4()}{image_ext}'
             if class_name and dataset_type:
                 self.logger.info(f'Retrieving image {image_url} for class {class_name} and it is put on {base_path} on the {dataset_type} set') 
             def retrieveAndStoreImage():
@@ -117,6 +124,11 @@ class DatasetRetriever():
                     urllib.request.urlretrieve(image_url, local_file_path)
                 else:
                     copyfile(image_url, local_file_path)
+                if not image_id:
+                    downloaded_image = Image.open(local_file_path)
+                    downloaded_image_hash = imagehash.average_hash(downloaded_image)
+                    local_file_path_with_hash_name = f'{base_path}/{downloaded_image_hash}{image_ext}'
+                    copyfile(local_file_path, local_file_path_with_hash_name)
                 return local_file_path
             def validateStoredImage(file_path_destination):
                 return os.path.isfile(file_path_destination)

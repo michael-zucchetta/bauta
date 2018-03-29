@@ -89,7 +89,7 @@ During the script execution, a few questions will be asked:
 * The Base path where all the data will be stored
 
 * The path with the CSV files containing the list of images (optional).
-Only the first two columns will be considered: the first will be used as id, the second as image url (if the CSV contains only one column, then, it will use the index as id)
+Only the first two columns will be considered: the first will be used as id, the second as image url (if the CSV contains only one column, then, it will use the hash of the image as id)
 
 * If the path of the CSVs file will not be provided, the class names will be asked
 

@@ -60,7 +60,7 @@ if __name__ == '__main__':
         class_names = os.listdir(f'{data_path}/dataset/augmentation/objects/train/')
         print(f'Found the following classes {class_names}')
     else:
-        class_names = askInput('Insert the default class names', '(Optional) Insert classes separated by a space')
+        class_names = askInput('Insert the default class names', '(Optional) Insert classes separated by a space: ')
         if class_names == '':
             print('Setting dummy classes')
             class_names = 'cat dog'
