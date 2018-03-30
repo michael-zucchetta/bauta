@@ -35,8 +35,6 @@ conda activate bauta
 ```
 
 ## Dataset
-First you will have to create a dataset and for that you will need either
-paths to images or URLs to them.
 The dataset is composed of two types of images:
 - **Objects**: these are png images with transparent background of the different
 classes you support. In case of a dataset of pets, you will have to provide
@@ -45,9 +43,28 @@ images for dogs and cats with transparent backgrounds
 In the case of a dataset of pets that would be photos of the street and photos of a backyard.
 
 
-Once you have the images you will have to create a file (`.txt`)
-for each class consisting of a carry-return list of either paths or URLs
-of the images. In the pets example, you will have three files:
+The dataset is stored in what's called the `data path` where models and dataset are stored.
+The images should be stored in the following folders
+```
+DATA_FOLDER/dataset/augmentation/test/<CLASS_NAME>
+DATA_FOLDER/dataset/augmentation/train/<CLASS_NAME>
+```
+
+There is a compulsory class called `background` that holds the background.
+All the other classes are expected to be `png`s with alpha channel.
+
+
+### Dataset Generation Tool
+There is a script `setup_dataset.py` that allows you to create the whole
+dataset together with the configuration file by using list of image paths or URLs.
+
+First you will have to create a dataset and for that you will need either
+paths to images or URLs to them.
+The URLs/paths have to be stored in a `txt` file named after the class name (e.g. `cat.txt`, `dog.txt`, `background.txt`, ...).
+Keep in mind that the file `background.txt` is compulsory.
+Furthermore, all the other images must be `png` files with alpha channel.
+
+In the pets example, you will have three files:
 ```
 background.txt
 dog.txt
@@ -59,7 +76,7 @@ Once you have the txt files in a single folder you will have to run
 ./setup_dataset
 ```
 
-This script will create the a `data path` with seveal subfolders where the dataset and models are stored
+This script will create the a **data path** with seveal subfolders where the dataset and models are stored
 as well as downloading the images and splitting them into test and train.
 The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` and contains a single attribute with the
 lists of classes.
@@ -75,12 +92,12 @@ classes:
 The script will also create the following folders and will fill them
 with the train and test split.
 ```
-DATA_FOLDER/dataset/augmentation/objects/test/dog
-DATA_FOLDER/dataset/augmentation/objects/train/dog
-DATA_FOLDER/dataset/augmentation/objects/test/dog
-DATA_FOLDER/dataset/augmentation/objects/train/cat
-DATA_FOLDER/dataset/augmentation/backgrounds/test
-DATA_FOLDER/dataset/augmentation/backgrounds/train
+DATA_FOLDER/dataset/augmentation/test/background
+DATA_FOLDER/dataset/augmentation/train/background
+DATA_FOLDER/dataset/augmentation/test/cat
+DATA_FOLDER/dataset/augmentation/train/cat
+DATA_FOLDER/dataset/augmentation/test/dog
+DATA_FOLDER/dataset/augmentation/train/dog
 ```
 
 ### Optional questions for generating the dataset
@@ -88,7 +105,7 @@ During the script execution, a few questions will be asked:
 
 * The Base path where all the data will be stored
 
-* The path with the txt files containing the list of image urls or paths (optional).
+* The path with the txt files containing the list of image URLs or paths (optional).
 
 * If the path of the txt file is not provided, the class names will be asked
 

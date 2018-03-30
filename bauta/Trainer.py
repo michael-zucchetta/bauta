@@ -69,6 +69,29 @@ class Trainer():
     def toVariable(self, tensors):
         return [Variable(tensor) for tensor in tensors]
 
+    def computeLoss(self, network_output, target_mask, target_objects_in_image):
+        object_found, mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index, boxes_index_all_masks = network_output
+        target_mask_scaled = nn.MaxPool2d(8, 8, return_indices=False)(target_mask)
+        target_mask_roi =  Model.applyRoiAlign(roi_align, target_mask, bounding_boxes, boxes_index)
+        if self.visual_logging:
+            self.visualLoggingOutput(network_output, target_mask_scaled, target_mask_roi)
+
+        objects_found, bounding_boxes_scaled_target, bounding_boxes_target = self.bounding_box_extractor(target_mask_scaled)
+        bounding_boxes = bounding_boxes * object_found.expand(bounding_boxes.size()).float()
+        bounding_box_loss = 1e-3 * (self.bounding_box_loss_scaled(bounding_boxes, bounding_boxes_target) + self.bounding_box_loss_scaled(bounding_boxes_scaled, bounding_boxes_scaled_target))
+        mask = mask * object_found.unsqueeze(3).expand(mask.size()).float()
+
+        loss_objects_found = self.objects_found_loss(objects_found.squeeze().float(), target_objects_in_image)
+        loss_scaled = self.focalLoss(mask_scaled, target_mask_scaled)
+        loss_unscaled = self.focalLoss(mask, target_mask_roi)
+
+        loss = ( self.loss_scaled_weight * loss_scaled ) + \
+            ( self.loss_unscaled_weight * loss_unscaled ) + \
+            ( self.bounding_box_loss_weight * bounding_box_loss ) + \
+            ( self.loss_objects_found_weight * loss_objects_found )
+
+        return loss, loss_scaled, bounding_box_loss, loss_objects_found, loss_unscaled
+
     def testLoss(self):
         current_test_loss = None
         dataset_test = DataAugmentationDataset(False,  self.data_path, self.visual_logging)
@@ -80,9 +103,10 @@ class Trainer():
         iterations = 0.0
         for i, (input_images, target_mask, target_objects_in_image) in enumerate(test_loader):
             input_images, target_mask, target_objects_in_image = self.toVariable(self.maybeCuda([input_images, target_mask, target_objects_in_image]))
-            objects_found, mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index, boxes_index_all_masks = self.mask_detector_model.forward([input_images, True])
-            target_mask = Model.applyRoiAlign(roi_align, target_mask, bounding_boxes, boxes_index_all_masks)
-            loss = self.bounding_box_loss_unscaled(mask, target_mask) + self.objects_found_loss(objects_found.squeeze().float(), target_objects_in_image)
+            if self.visual_logging:
+                self.visualLoggingDataset(input_images, target_mask)
+            network_output = self.mask_detector_model.forward([input_images, True])
+            loss, loss_scaled, bounding_box_loss, loss_objects_found, loss_unscaled = self.computeLoss(network_output, target_mask, target_objects_in_image)
             average_current_test_loss = average_current_test_loss +  loss.data[0]
             iterations = iterations + 1.0
         average_current_test_loss = average_current_test_loss / iterations
@@ -135,34 +159,8 @@ class Trainer():
                     cv2.imshow(f'Output Mask Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_index][current_class]))
         cv2.waitKey(0)
 
-    def backpropagate(self, network_output, input_images, target_mask, target_objects_in_image):
-        object_found, mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index, boxes_index_all_masks = network_output
-        target_mask_scaled = nn.MaxPool2d(8, 8, return_indices=False)(target_mask)
-        target_mask_roi =  Model.applyRoiAlign(roi_align, target_mask, bounding_boxes, boxes_index)
-        if self.visual_logging:
-            self.visualLoggingOutput(network_output, target_mask_scaled, target_mask_roi)
-
-        self.optimizer.zero_grad()
-        objects_found, bounding_boxes_scaled_target, bounding_boxes_target = self.bounding_box_extractor(target_mask_scaled)
-        bounding_boxes = bounding_boxes * object_found.expand(bounding_boxes.size()).float()
-        bounding_box_loss = 1e-3 * (self.bounding_box_loss_scaled(bounding_boxes, bounding_boxes_target) + self.bounding_box_loss_scaled(bounding_boxes_scaled, bounding_boxes_scaled_target))
-        mask = mask * object_found.unsqueeze(3).expand(mask.size()).float()
-        loss_objects_found = self.objects_found_loss(objects_found.squeeze().float(), target_objects_in_image)
-
-        loss_scaled = self.focalLoss(mask_scaled, target_mask_scaled)
-        loss_unscaled = self.focalLoss(mask, target_mask_roi)
-
-        loss = ( self.loss_scaled_weight * loss_scaled ) + \
-            ( self.loss_unscaled_weight * loss_unscaled ) + \
-            ( self.bounding_box_loss_weight * bounding_box_loss ) + \
-            ( self.loss_objects_found_weight * loss_objects_found )
-
-        loss.backward()
-        self.optimizer.step()
-        return loss.data[0], loss_scaled.data[0], bounding_box_loss.data[0], loss_objects_found.data[0], loss_unscaled.data[0]
-
     def logLoss(self, losses, epoch, train_dataset_index, dataset_train):
-        loss, loss_scaled, bounding_box_loss, loss_objects_found, loss_unscaled = losses
+        loss, loss_scaled, bounding_box_loss, loss_objects_found, loss_unscaled = [loss.data[0] for loss in losses]
         self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] -- Objects Found Loss: {loss_objects_found:{0}.{4}} -- Focal Loss: {loss:{1}.{4}}  -- BoundingBox Loss {bounding_box_loss:{1}.{4}} Focal Loss Unscaled: {loss_unscaled:{1}.{4}} -- Focal Loss Scaled {loss_scaled:{1}.{4}}')
 
     def train(self):
@@ -182,8 +180,11 @@ class Trainer():
                 if self.visual_logging:
                     self.visualLoggingDataset(input_images, target_mask)
                 network_output  = self.mask_detector_model.forward([input_images, True])
-                losses = self.backpropagate(network_output, input_images, target_mask, target_objects_in_image)
-                self.logLoss(losses, epoch, train_dataset_index, dataset_train)
+                self.optimizer.zero_grad()
+                loss, loss_scaled, bounding_box_loss, loss_objects_found, loss_unscaled = self.computeLoss(network_output, target_mask, target_objects_in_image)
+                loss.backward()
+                self.optimizer.step()
+                self.logLoss([loss, loss_scaled, bounding_box_loss, loss_objects_found, loss_unscaled], epoch, train_dataset_index, dataset_train)
                 train_dataset_index = train_dataset_index + 1
             self.environment.saveModel(self.mask_detector_model, os.path.join(self.environment.models_path, f"{(epoch + 1)}.backup"))
             best_test_loss = self.testAndSaveIfImproved(best_test_loss)
