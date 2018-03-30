@@ -78,4 +78,6 @@ class DataAugmentationDataset(Dataset):
         target_mask_all_classes = self.image_utils.blankImage(self.constants.input_width, self.constants.input_height, len(self.config.classes))
         target_mask_all_classes[:, :, class_index : class_index + 1] = target_mask[:, :]
         target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1] = 255 - target_mask[:,:]
+        if target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1].sum() > 0:
+            objects_in_image[self.constants.background_mask_index] = 1
         return transforms.ToTensor()(input_image), transforms.ToTensor()(target_mask_all_classes), objects_in_image

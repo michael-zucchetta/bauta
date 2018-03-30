@@ -78,12 +78,12 @@ class Trainer():
         if self.visual_logging:
             self.visualLoggingOutput(network_output, target_mask_scaled, target_mask_roi)
 
-        objects_found, bounding_boxes_scaled_target, bounding_boxes_target = self.bounding_box_extractor(target_mask_scaled)
-        bounding_boxes = bounding_boxes * object_found.expand(bounding_boxes.size()).float()
+        object_found_bounding_box, bounding_boxes_scaled_target, bounding_boxes_target = self.bounding_box_extractor(target_mask_scaled)
+        bounding_boxes = bounding_boxes * object_found_bounding_box.expand(bounding_boxes.size()).float()
         bounding_box_loss = 1e-3 * (self.bounding_box_loss_scaled(bounding_boxes, bounding_boxes_target) + self.bounding_box_loss_scaled(bounding_boxes_scaled, bounding_boxes_scaled_target))
-        mask = mask * object_found.unsqueeze(3).expand(mask.size()).float()
+        mask = mask * object_found_bounding_box.unsqueeze(3).expand(mask.size()).float()
 
-        loss_objects_found = self.objects_found_loss(objects_found.squeeze().float(), target_objects_in_image)
+        loss_objects_found = self.objects_found_loss(object_found_bounding_box.squeeze().float(), target_objects_in_image)
         loss_scaled = self.focalLoss(mask_scaled, target_mask_scaled)
         loss_unscaled = self.focalLoss(mask, target_mask_roi)
 
