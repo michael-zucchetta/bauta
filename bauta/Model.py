@@ -3,10 +3,13 @@ from torch.nn.parameter import Parameter
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+
 import cv2
 import numpy as np
-from bauta.BoundingBoxExtractor import BoundingBoxExtractor
+
 from roi_align.roi_align import RoIAlign
+
+from bauta.BoundingBoxExtractor import BoundingBoxExtractor
 
 class Model(nn.Module):
 

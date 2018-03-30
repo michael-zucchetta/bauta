@@ -37,3 +37,9 @@ class SystemUtils():
                 if(current_attempt > max_attempts):
                     raise ValueError('It is not possible run method.', e)
         return result
+
+    def getLogger(self, object_owner, level=logging.INFO):
+        class_name = type(object_owner).__name__
+        handlers = [logging.StreamHandler()]
+        logging.basicConfig(level=level, handlers=handlers)
+        return logging.getLogger(class_name)

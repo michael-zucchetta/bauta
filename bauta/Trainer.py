@@ -21,6 +21,7 @@ from bauta.Model import Model
 from bauta.DatasetConfiguration import DatasetConfiguration
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageUtils import ImageUtils
+from bauta.Constants import Constants
 
 class Trainer():
 
@@ -28,6 +29,7 @@ class Trainer():
     def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu,\
         loss_scaled_weight, loss_unscaled_weight, bounding_box_loss_weight, loss_objects_found_weight):
         super(Trainer, self).__init__()
+        self.constants = Constants()
         self.config = DatasetConfiguration(True, data_path)
         self.data_path = data_path
         self.visual_logging = visual_logging
@@ -42,7 +44,7 @@ class Trainer():
         self.gpu = gpu
         self.image_utils = ImageUtils()
         self.environment = EnvironmentUtils(self.data_path)
-        self.bounding_box_extractor = BoundingBoxExtractor(self.environment.input_width, self.environment.input_height, 8)
+        self.bounding_box_extractor = BoundingBoxExtractor(self.constants.input_width, self.constants.input_height, 8)
         self.mask_detector_model = self.loadModel()
         self.bounding_box_loss_scaled = nn.L1Loss()
         self.bounding_box_loss_unscaled = nn.L1Loss()
@@ -153,7 +155,7 @@ class Trainer():
         object_found, mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index, boxes_index_all_masks = network_output
         for current_index in range(mask_scaled.size()[0]):
             for current_class in range(len(self.config.classes)):
-                if object_found[current_index][current_class].data[0] > 0.0 or current_class == self.environment.background_mask_index:
+                if object_found[current_index][current_class].data[0] > 0.0 or current_class == self.constants.background_mask_index:
                     cv2.imshow(f'Target Mask Scaled Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(target_mask_scaled.data[current_index][current_class]))
                     cv2.imshow(f'Output Mask Scaled Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask_scaled.data[current_index][current_class]))
                     cv2.imshow(f'Output Mask Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_index][current_class]))

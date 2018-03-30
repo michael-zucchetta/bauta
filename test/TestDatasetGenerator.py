@@ -21,7 +21,6 @@ class TestDatasetGenerator(unittest.TestCase):
         images_path = f'/tmp/{random.randint(0, 100000)}'
         data_path = f'/tmp/{random.randint(0, 100000)}'
         system_utils.makeDirIfNotExists(images_path)
-        system_utils.makeDirIfNotExists(data_path)
         squares_image_path = f'{images_path}/square.txt'
         with open(f'{images_path}/square.txt','w') as file:
             file.write('./test/data/images/square/square_1.png')
@@ -54,7 +53,6 @@ class TestDatasetGenerator(unittest.TestCase):
         images_path = f'/tmp/{random.randint(0, 100000)}'
         data_path = f'/tmp/{random.randint(0, 100000)}'
         system_utils.makeDirIfNotExists(images_path)
-        system_utils.makeDirIfNotExists(data_path)
 
         # INSERT THREE IMAGES PER CLASS AT 25% TESTING
         squares_image_path = f'{images_path}/square.txt'

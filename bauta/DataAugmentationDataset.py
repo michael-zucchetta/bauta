@@ -17,14 +17,15 @@ from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.BoundingBox import BoundingBox
 from bauta.DatasetConfiguration import DatasetConfiguration
 from bauta.ImageInfo import ImageInfo
+from bauta.Constants import Constants
 
 class DataAugmentationDataset(Dataset):
 
     def __init__(self, is_train, data_path, visual_logging=False, seed=None):
         super(DataAugmentationDataset, self).__init__()
         random.seed(seed)
+        self.constants = Constants()
         self.visual_logging = visual_logging
-        self.enviroment = EnvironmentUtils(data_path)
         self.config = DatasetConfiguration(is_train, data_path)
         self.image_utils = ImageUtils()
 
@@ -32,31 +33,31 @@ class DataAugmentationDataset(Dataset):
         return self.config.length
 
     def scale(self, image):
-        return cv2.resize(image, (self.enviroment.input_width, self.enviroment.input_height))
+        return cv2.resize(image, (self.constants.input_width, self.constants.input_height))
 
     def coverInputDimensions(self, image):
         image_info = ImageInfo(image)
-        if image_info.width < self.enviroment.input_width:
-            image = cv2.resize(image, (self.enviroment.input_width, int(self.enviroment.input_width / image_info.aspect_ratio)))
+        if image_info.width < self.constants.input_width:
+            image = cv2.resize(image, (self.constants.input_width, int(self.constants.input_width / image_info.aspect_ratio)))
         image_info = ImageInfo(image)
-        if image_info.height < self.enviroment.input_height:
-            image = cv2.resize(image, (int(self.enviroment.input_height * image_info.aspect_ratio), self.enviroment.input_height))
+        if image_info.height < self.constants.input_height:
+            image = cv2.resize(image, (int(self.constants.input_height * image_info.aspect_ratio), self.constants.input_height))
         return image
 
     def randomBackground(self):
-        background_index = np.random.randint(len(self.config.objects[self.enviroment.background_label]), size=1)[0]
-        background = self.scale(cv2.imread(self.config.objects[self.enviroment.background_label][background_index], cv2.IMREAD_COLOR))
+        background_index = np.random.randint(len(self.config.objects[self.constants.background_label]), size=1)[0]
+        background = self.scale(cv2.imread(self.config.objects[self.constants.background_label][background_index], cv2.IMREAD_COLOR))
         background = self.coverInputDimensions(background)
         #TODO: central and/or random crop (not necessarily top-left as now)
-        return background[:, 0:self.enviroment.input_width, 0:self.enviroment.input_height]
+        return background[:, 0:self.constants.input_width, 0:self.constants.input_height]
 
     def imageWithinInputDimensions(self, image):
         image_info = ImageInfo(image)
-        if image_info.width > self.enviroment.input_width:
-            image = cv2.resize(image, (self.enviroment.input_width, int(self.enviroment.input_width / image_info.aspect_ratio)))
+        if image_info.width > self.constants.input_width:
+            image = cv2.resize(image, (self.constants.input_width, int(self.constants.input_width / image_info.aspect_ratio)))
         image_info = ImageInfo(image)
-        if image_info.height > self.enviroment.input_height:
-            image = cv2.resize(image, (int(self.enviroment.input_height * image_info.aspect_ratio), self.enviroment.input_height))
+        if image_info.height > self.constants.input_height:
+            image = cv2.resize(image, (int(self.constants.input_height * image_info.aspect_ratio), self.constants.input_height))
         return image
 
     def randomObject(self, index):
@@ -74,7 +75,7 @@ class DataAugmentationDataset(Dataset):
         objects_in_image[class_index] = 1
         background = self.randomBackground()
         input_image, target_mask = self.image_utils.pasteRGBAimageIntoRGBimage(current_object, background, 0, 0)
-        target_mask_all_classes = self.image_utils.blankImage(self.enviroment.input_width, self.enviroment.input_height, len(self.config.classes))
+        target_mask_all_classes = self.image_utils.blankImage(self.constants.input_width, self.constants.input_height, len(self.config.classes))
         target_mask_all_classes[:, :, class_index : class_index + 1] = target_mask[:, :]
-        target_mask_all_classes[:, :, self.enviroment.background_mask_index:self.enviroment.background_mask_index + 1] = 255 - target_mask[:,:]
+        target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1] = 255 - target_mask[:,:]
         return transforms.ToTensor()(input_image), transforms.ToTensor()(target_mask_all_classes), objects_in_image

@@ -9,19 +9,20 @@ from urllib import parse
 
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.SystemUtils import SystemUtils
+from bauta.Constants import Constants
 
 
 class DatasetGenerator():
 
     def __init__(self, data_path):
         self.data_path = data_path
-        self.environment = EnvironmentUtils(data_path)
         self.system = SystemUtils()
-        self.logger = self.environment.getLogger(self)
+        self.logger = self.system.getLogger(self)
+        self.constants = Constants()
 
     def createConfigurationFile(self, class_names):
         try:
-            class_names_without_background = list(filter(lambda class_name: class_name != self.environment.background_label, class_names))
+            class_names_without_background = list(filter(lambda class_name: class_name != self.constants.background_label, class_names))
             configuration_file_path = os.path.join(self.data_path, "config.yaml")
             with open(configuration_file_path, 'w') as config_yaml_file:
                 classes_as_string = [f'  - {class_name}\n' for class_name in class_names_without_background]
@@ -36,16 +37,17 @@ class DatasetGenerator():
     def generateDatasetFromListOfImages(self, images_path, split_test_proportion, download_batch_size):
         datasets_with_attributes = []
         self.makeDefaultDirs()
+        environment = EnvironmentUtils(self.data_path)
         class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path)]
-        if self.environment.background_label not in class_names:
+        if self.constants.background_label not in class_names:
              self.logger.error(f'The class "background" is compulsory but it was not found. Thus dataset cannot be created.', e)
              return None
         self.createConfigurationFile(class_names)
         for file_in_path in os.listdir(images_path):
             if self.system.hasExtension(os.path.join(images_path, file_in_path), ['txt']):
                 class_name = os.path.splitext(file_in_path)[0]
-                train_path = self.environment.objectsFolder(class_name, True)
-                test_path  = self.environment.objectsFolder(class_name, False)
+                train_path = environment.objectsFolder(class_name, True)
+                test_path  = environment.objectsFolder(class_name, False)
                 images = self.readImages(os.path.join(images_path, file_in_path))
                 self.system.makeDirIfNotExists(train_path)
                 self.system.makeDirIfNotExists(test_path)
@@ -99,6 +101,7 @@ class DatasetGenerator():
         return ids_to_train_images, ids_to_test_images
 
     def retrieveImages(self, images, class_name, is_train):
+        environment = EnvironmentUtils(self.data_path)
         for (image_id, image_url) in images:
             parsed_url = urllib.parse.urlparse(image_url)
             image_url_path = parsed_url.path
@@ -107,7 +110,7 @@ class DatasetGenerator():
                 image_extension = name_and_extension[1]
             else:
                 image_extension = '.png'
-            local_file_path = os.path.join(self.environment.objectsFolder(class_name, is_train), f'{image_id}{image_extension}')
+            local_file_path = os.path.join(environment.objectsFolder(class_name, is_train), f'{image_id}{image_extension}')
             self.logger.info(f'Retrieving image "{image_url}" for class "{class_name}" and saving it in "{local_file_path}"')
             def retrieveAndStoreImage():
                 if parsed_url.scheme:
@@ -117,4 +120,7 @@ class DatasetGenerator():
                 return local_file_path
             def validateStoredImage(file_path_destination):
                 return os.path.isfile(file_path_destination)
-            self.system.tryToRun(retrieveAndStoreImage, validateStoredImage, 5)
+            try:
+                self.system.tryToRun(retrieveAndStoreImage, validateStoredImage, 5)
+            except BaseException as e:
+                self.logger.error(f'Cannot download and/or move image id "{image_id}" with URI "{image_url}"', e)
