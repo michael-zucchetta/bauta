@@ -15,7 +15,6 @@ conda install --yes click
 conda install --yes pyyaml
 conda install --yes requests
 conda install --yes coverage
-conda install --yes -c conda-forge imagehash
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     machine=Linux;;

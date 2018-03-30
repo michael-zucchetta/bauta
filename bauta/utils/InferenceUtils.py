@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from bauta.BoundingBox import BoundingBox
 from bauta.ImageUtils import ImageUtils
-from bauta.Environment import Environment
+from bauta.EnvironmentUtils import EnvironmentUtils
 import torch.nn.functional as F
 from torch.autograd import Variable
 
@@ -18,7 +18,7 @@ class InferenceUtils():
     """Utility methods for inference"""
 
     def __init__(self):
-        self.environment = Environment()
+        self.environment = EnvironmentUtils()
         self.loader = transforms.Compose([transforms.ToTensor()])
         self.image_utils = ImageUtils()
 

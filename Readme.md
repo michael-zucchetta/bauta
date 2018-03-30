@@ -45,16 +45,16 @@ images for dogs and cats with transparent backgrounds
 In the case of a dataset of pets that would be photos of the street and photos of a backyard.
 
 
-Once you have the images you will have to create a file (`.txt` or `.csv`)
+Once you have the images you will have to create a file (`.txt`)
 for each class consisting of a carry-return list of either paths or URLs
 of the images. In the pets example, you will have three files:
 ```
-background.csv
-dog.csv
-cat.csv
+background.txt
+dog.txt
+cat.txt
 ```
 
-Once you have the csv files in a single folder you will have to run
+Once you have the txt files in a single folder you will have to run
 ```
 ./setup_dataset
 ```
@@ -83,17 +83,14 @@ DATA_FOLDER/dataset/augmentation/backgrounds/test
 DATA_FOLDER/dataset/augmentation/backgrounds/train
 ```
 
-# Optional questions for generating the dataset
+### Optional questions for generating the dataset
 During the script execution, a few questions will be asked:
 
 * The Base path where all the data will be stored
 
-* The path with the CSV files containing the list of images (optional).
-Only the first two columns will be considered: the first will be used as id, the second as image url (if the CSV contains only one column, then, it will use the hash of the image as id)
+* The path with the txt files containing the list of image urls or paths (optional).
 
-* If the path of the CSVs file will not be provided, the class names will be asked
-
-* The path of the CSVs with the list of background URLs (optional)
+* If the path of the txt file is not provided, the class names will be asked
 
 
 ## Training

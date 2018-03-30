@@ -17,26 +17,31 @@ from roi_align.roi_align import RoIAlign
 
 from bauta.DataAugmentationDataset import DataAugmentationDataset
 from bauta.BoundingBoxExtractor import BoundingBoxExtractor
-from bauta.Environment import Environment
 from bauta.Model import Model
 from bauta.DatasetConfiguration import DatasetConfiguration
-from bauta.ImageUtils import ImageUtils
+from bauta.utils.EnvironmentUtils import EnvironmentUtils
+from bauta.utils.ImageUtils import ImageUtils
 
 class Trainer():
 
 
-    def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu):
+    def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu,\
+        loss_scaled_weight, loss_unscaled_weight, bounding_box_loss_weight, loss_objects_found_weight):
         super(Trainer, self).__init__()
         self.config = DatasetConfiguration(True, data_path)
         self.data_path = data_path
         self.visual_logging = visual_logging
         self.reset_model = reset_model
+        self.loss_scaled_weight = loss_scaled_weight
+        self.loss_unscaled_weight = loss_unscaled_weight
+        self.bounding_box_loss_weight = bounding_box_loss_weight
+        self.loss_objects_found_weight = loss_objects_found_weight
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.gpu = gpu
         self.image_utils = ImageUtils()
-        self.environment = Environment(self.data_path)
+        self.environment = EnvironmentUtils(self.data_path)
         self.bounding_box_extractor = BoundingBoxExtractor(self.environment.input_width, self.environment.input_height, 8)
         self.mask_detector_model = self.loadModel()
         self.bounding_box_loss_scaled = nn.L1Loss()
@@ -117,22 +122,17 @@ class Trainer():
     def visualLoggingDataset(self, input_images, target_mask):
         for current_index in range(input_images.size()[0]):
             cv2.imshow(f'Trainer -- Input Image {current_index}', self.image_utils.toNumpy(input_images.data[current_index]))
-            cv2.imshow(f'Trainer -- Target Mask {current_index} for background', self.image_utils.toNumpy(target_mask.data[current_index][self.environment.background_mask_index]))
-            for current_class_index in range(target_mask[current_index].size()[0] - 1):
-                cv2.imshow(f'Trainer -- Target Mask {current_index} for class {self.config.classes[current_class_index]}', self.image_utils.toNumpy(target_mask.data[current_index][current_class_index + 1]))
+            for current_class_index in range(target_mask[current_index].size()[0]):
+                cv2.imshow(f'Trainer -- Target Mask {current_index} for class {self.config.classes[current_class_index]}', self.image_utils.toNumpy(target_mask.data[current_index][current_class_index]))
 
     def visualLoggingOutput(self, network_output, target_mask_scaled, target_mask_roi):
         object_found, mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index, boxes_index_all_masks = network_output
         for current_index in range(mask_scaled.size()[0]):
             for current_class in range(len(self.config.classes)):
-                if object_found[current_index][0].data[0] > 0.0:
-                    cv2.imshow(f'Target Mask Scaled Index {current_index} For Background', self.image_utils.toNumpy(target_mask_scaled.data[current_index][0]))
-                    cv2.imshow(f'Output Mask Scaled Index {current_index} For Background', self.image_utils.toNumpy(mask_scaled.data[current_index][0]))
-                    cv2.imshow(f'Output Mask Index {current_index} For Background', self.image_utils.toNumpy(mask.data[current_index][0]))
-                if object_found[current_index][current_class + 1].data[0] > 0.0:
-                    cv2.imshow(f'Target Mask Scaled Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(target_mask_scaled.data[current_index][current_class + 1]))
-                    cv2.imshow(f'Output Mask Scaled Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask_scaled.data[current_index][current_class + 1]))
-                    cv2.imshow(f'Output Mask Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_index][current_class + 1]))
+                if object_found[current_index][current_class].data[0] > 0.0 or current_class == self.environment.background_mask_index:
+                    cv2.imshow(f'Target Mask Scaled Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(target_mask_scaled.data[current_index][current_class]))
+                    cv2.imshow(f'Output Mask Scaled Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask_scaled.data[current_index][current_class]))
+                    cv2.imshow(f'Output Mask Index {current_index} for class "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_index][current_class]))
         cv2.waitKey(0)
 
     def backpropagate(self, network_output, input_images, target_mask, target_objects_in_image):
@@ -151,7 +151,12 @@ class Trainer():
 
         loss_scaled = self.focalLoss(mask_scaled, target_mask_scaled)
         loss_unscaled = self.focalLoss(mask, target_mask_roi)
-        loss = ( 0.1 * loss_scaled ) + ( 0.5 * loss_unscaled ) + (0.1 * bounding_box_loss) + (0.3 * loss_objects_found)
+
+        loss = ( self.loss_scaled_weight * loss_scaled ) + \
+            ( self.loss_unscaled_weight * loss_unscaled ) + \
+            ( self.bounding_box_loss_weight * bounding_box_loss ) + \
+            ( self.loss_objects_found_weight * loss_objects_found )
+
         loss.backward()
         self.optimizer.step()
         return loss.data[0], loss_scaled.data[0], bounding_box_loss.data[0], loss_objects_found.data[0], loss_unscaled.data[0]

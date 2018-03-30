@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 import traceback
 
-from bauta.Environment import Environment
+from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.BoundingBox import BoundingBox
 from bauta.ImageInfo import ImageInfo
 
@@ -35,11 +35,11 @@ class ImageUtils():
         return tensor.transpose(0, 2).transpose(0, 1).cpu().numpy()
 
     def addWhitePaddingToKeepAspectRatioOfOriginalImageAndScaleToNeworkInputField(self, input_image_scaled, input_width, input_height, x_offset, y_offset):
-        colours = len(cv2.split(input_image_scaled))
-        input_image_scaled_padding = np.ones((input_height, input_width, colours), dtype=np.uint8) * 255
+        colors = len(cv2.split(input_image_scaled))
+        input_image_scaled_padding = np.ones((input_height, input_width, colors), dtype=np.uint8) * 255
         if(len(input_image_scaled.shape) == 2):
             input_image_scaled = np.expand_dims(input_image_scaled, axis=2)
-        if(colours == 4):
+        if(colors == 4):
             input_image_scaled = self.removeAlphaChannelFromImage(input_image_scaled)
         input_image_scaled = self.composeImages(input_image_scaled_padding, input_image_scaled, \
             x_offset , y_offset, use_image_to_add_alpha_channel=False, skip_alpha_channel=True)
@@ -47,7 +47,7 @@ class ImageUtils():
 
     def paddingScale(self, input_image, input_width, input_height):
         image_info = ImageInfo(input_image)
-        environment = Environment()
+        environment = EnvironmentUtils()
         # image scaled to input field keeping aspect ratio
         if environment.input_width / environment.input_height <= image_info.aspect_ratio:
             new_height = environment.input_height

@@ -1,11 +1,7 @@
 import unittest
-import torch
-import sys, os
-import cv2
-from PIL import Image
-import torchvision.transforms as transforms
+
 from bauta.BoundingBox import BoundingBox
-from bauta.Environment import Environment
+
 class TestBoundingBox(unittest.TestCase):
 
     def test_dimensions(self):

@@ -1,6 +1,6 @@
 import cv2
+
 class BoundingBox():
-    """Bounding box"""
 
     def __init__(self, top, left, bottom, right):
         if(top > bottom ):

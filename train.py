@@ -9,12 +9,24 @@ import os
 @click.option('--reset_model', default=False, help='Reset model (start from scratch).')
 @click.option('--num_epochs', default=10000, help='Number of epochs.')
 @click.option('--batch_size', default=16, help='Batch size.')
-@click.option('--learning_rate', default= 0.0001, help='Learning rate')
+@click.option('--learning_rate', default=0.0001, help='Learning rate')
+@click.option('--only_mask', default=True, help='Only learn masks without bounding boxes. Suitable for initial training.')
 @click.option('--gpu', default=0, help='GPU index')
-def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu):
+def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu, only_mask):
     if not reset_model:
         reset_model_classes = None
-    trainer = Trainer(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu)
+    if only_mask:
+        loss_scaled_weight = 1.0
+        loss_unscaled_weight = 0.0
+        bounding_box_loss_weight = 0.0
+        loss_objects_found_weight = 0.0
+    else:
+        loss_scaled_weight = 0.1
+        loss_unscaled_weight = 0.5
+        bounding_box_loss_weight = 0.1
+        loss_objects_found_weight = 0.3
+    trainer = Trainer(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu, \
+        loss_scaled_weight, loss_unscaled_weight, bounding_box_loss_weight, loss_objects_found_weight)
     trainer.train()
 
 if __name__ == '__main__':

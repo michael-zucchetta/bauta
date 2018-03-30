@@ -13,7 +13,7 @@ class Model(nn.Module):
     def __init__(self, classes, filter_banks, filter_size, scale):
         super(Model, self).__init__()
 
-        self.classes = classes + 1 # +1 class for background
+        self.classes = classes
         self.scale = scale
         self.dilations_count = 5
         self.dilation_blocks_count = 5
@@ -38,7 +38,7 @@ class Model(nn.Module):
         self.fully_connected_1 = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks, filter_banks * 5, filter_size, 1)
         self.fully_connected_2 = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks * 5, self.classes, filter_size, 1)
 
-        self.refine = self.createDilatedConvolutionPreservingSpatialDimensions(((filter_banks * 2) * (classes + 1)) + (classes + 1), filter_banks, filter_size, 1)
+        self.refine = self.createDilatedConvolutionPreservingSpatialDimensions(((filter_banks * 2) * classes) + classes, filter_banks, filter_size, 1)
 
         self.upsample = nn.Upsample(scale_factor=self.scale, mode='nearest')
 

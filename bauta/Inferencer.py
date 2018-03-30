@@ -8,8 +8,8 @@ from torch.autograd import Variable
 from bauta.DressDetectorDataset import DressDetectorDataset
 from bauta.InferenceUtils import InferenceUtils
 import sys
-from bauta.Environment import Environment
-from bauta.ImageUtils import ImageUtils
+from bauta.utils.EnvironmentUtils import EnvironmentUtils
+from bauta.utils.ImageUtils import ImageUtils
 import os, random, math
 import click
 import torch.nn.functional as F
@@ -22,7 +22,7 @@ class MaskDetectorInferencer():
         self.save_result = save_result
         self.result_folder = result_folder
         self.folder_name = folder_name
-        self.environment = Environment()
+        self.environment = EnvironmentUtils()
         self.inference_utils = InferenceUtils()
         self.image_utils = ImageUtils()
 
