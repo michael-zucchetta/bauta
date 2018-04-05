@@ -15,7 +15,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class InferenceUtils():
-    """Utility methods for inference"""
 
     def __init__(self):
         self.environment = EnvironmentUtils()

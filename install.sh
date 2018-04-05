@@ -6,11 +6,28 @@ if ! [ -x "$(command -v conda)" ]; then
   echo 'Error: it was not possible to find anaconda ( conda command ). Please install anaconda or miniconda for your system ( https://conda.io/miniconda.html ). Remember to source .bashrc to enable anaconda' >&2
   exit 1
 fi
+BAUTA_HOME="$(pwd)"
 conda update -n base conda --yes
 echo "Installing anaconda environment 'bauta' with all the required dependencies..."
 conda create --name bauta python=3.6 --yes
 source activate bauta
-conda install --yes pytorch torchvision -c pytorch
+if ! [ -x "$(command -v nvcc)" ];
+then
+  echo "CUDA not detected"
+  conda install pytorch-cpu torchvision -c pytorch
+else
+  CUDA_VERSION="$(nvcc --version --disable-warnings | grep -Po "V(\d)[.0*]*" | awk '{print substr($0,2,1)}')"
+  case "$CUDA_VERSION" in
+        8)
+          conda install --yes pytorch torchvision -c pytorch
+            ;;
+        9)
+          conda install --yes pytorch torchvision cuda90 -c pytorch
+            ;;
+        *)
+          conda install --yes pytorch torchvision -c pytorch
+  esac
+fi
 conda install --yes click
 conda install --yes pyyaml
 conda install --yes requests
@@ -23,11 +40,17 @@ case "${unameOut}" in
     MINGW*)     machine=MinGw;;
     *)          machine="UNKNOWN:${unameOut}"
 esac
-if [ "$machine" == "Mac" ]; then
+if [ "$machine" == "Mac" ];
+then
+  #
+  # INSTALL ESSENTIAL DEPENDENCIES
+  #
+  /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+  sudo xcodebuild -license accept
+  brew install wget git cmake pkg-config jpeg libpng libtiff openexr eigen tbb
   #
   # INSTALL PROTOBUF FROM SOURCES TO AVOID PROBLEMS WITH DEPENDENCIES
   #
-  brew install git cmake pkg-config jpeg libpng libtiff openexr eigen tbb
   cd ~
   git clone git@github.com:google/protobuf.git
   cd protobuf
@@ -79,9 +102,10 @@ fi
 cd ~
 git clone https://github.com/longcw/RoIAlign.pytorch
 cd RoIAlign.pytorch
+git pull
 ./install.sh
-cd ..
 #
 # INSTALL BAUTA ITSELF
 #
+cd $BAUTA_HOME
 python setup.py install

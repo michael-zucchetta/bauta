@@ -26,11 +26,9 @@ class BoundingBoxExtractor(nn.Module):
 
     def getBoundingBoxes(self, mask, threshold=0.5):
         mask_binary = (mask >= threshold).float()
-        edges = mask_binary
-        edges = (edges > 0.5).float()
-        edges = torch.split(edges, 1, dim=1)
-        y_coordinates = torch.cat([self.y_coordinate_extractor(edges[edge]).view(-1, 1, self.scaled_input_height * self.scaled_input_width) for edge in range(len(edges))], 1)
-        x_coordinates = torch.cat([self.x_coordinate_extractor(edges[edge]).view(-1, 1, self.scaled_input_height * self.scaled_input_width) for edge in range(len(edges))], 1)
+        mask_binary = torch.split(mask_binary, 1, dim=1)
+        y_coordinates = torch.cat([self.y_coordinate_extractor(mask_binary[edge]).view(-1, 1, self.scaled_input_height * self.scaled_input_width) for edge in range(len(mask_binary))], 1)
+        x_coordinates = torch.cat([self.x_coordinate_extractor(mask_binary[edge]).view(-1, 1, self.scaled_input_height * self.scaled_input_width) for edge in range(len(mask_binary))], 1)
         x_min = torch.min(x_coordinates, -1)[0].unsqueeze(2)
         y_min = torch.min(y_coordinates, -1)[0].unsqueeze(2)
         x_max = torch.max(x_coordinates, -1)[0].unsqueeze(2)
@@ -38,10 +36,10 @@ class BoundingBoxExtractor(nn.Module):
         object_found = (y_max > y_min) * (x_max > x_min)
         bounding_boxes_scaled = torch.cat((x_min, y_min, x_max, y_max), 2)
         bounding_boxes = bounding_boxes_scaled * self.scale
-        return object_found, bounding_boxes_scaled, bounding_boxes, mask_binary, edges
+        return object_found, bounding_boxes_scaled, bounding_boxes, mask_binary
 
     def forward(self, mask):
-        object_found, bounding_boxes_scaled, bounding_boxes, mask_binary, edges = self.getBoundingBoxes(mask)
+        object_found, bounding_boxes_scaled, bounding_boxes, mask_binary = self.getBoundingBoxes(mask)
         return object_found, bounding_boxes_scaled, bounding_boxes
 
     def createXCoordinateExtractor(self, columns):

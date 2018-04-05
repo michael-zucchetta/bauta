@@ -4,11 +4,14 @@ import sys
 import yaml
 import traceback
 import operator, functools
+from bauta.utils.SystemUtils import SystemUtils
 
 class DatasetConfiguration():
 
     def __init__(self, is_train, data_path):
+        system_utils = SystemUtils()
         self.data_path = data_path
+        self.is_train  = is_train
         if is_train:
             self.dataset_type = "train"
         else:
@@ -27,7 +30,7 @@ class DatasetConfiguration():
         self.classes.insert(0, 'background')
         for index, class_label in enumerate(self.classes):
             class_path = os.path.join(self.objects_path, class_label)
-            self.objects[class_label] = [os.path.join(class_path, image_file) for image_file in os.listdir(class_path) if os.path.isfile(os.path.join(class_path, image_file))]
+            self.objects[class_label] = [os.path.join(class_path, image_file) for image_file in system_utils.imagesInFolder(class_path)]
         self.length = functools.reduce(operator.add, [len(class_label) for class_label in self.objects], 0)
 
     def classIndexesExcludingBackground(self):

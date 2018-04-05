@@ -16,7 +16,7 @@ class SystemUtils():
         if not os.path.isdir(folder):
             return []
         else:
-            return list(filter(lambda filename: self.hasExtension(os.path.join(folder, filename), ['png', 'jpg']), os.listdir(folder)))
+            return list(filter(lambda filename: self.hasExtension(os.path.join(folder, filename), ['png', 'jpg', 'jpeg']), os.listdir(folder)))
 
     def makeDirIfNotExists(self, path):
         if not os.path.exists(path):

@@ -28,6 +28,7 @@ class DataAugmentationDataset(Dataset):
         self.visual_logging = visual_logging
         self.config = DatasetConfiguration(is_train, data_path)
         self.image_utils = ImageUtils()
+        self.environment = EnvironmentUtils(data_path)
 
     def __len__(self):
         return self.config.length
@@ -45,7 +46,7 @@ class DataAugmentationDataset(Dataset):
         return image
 
     def randomBackground(self):
-        background_index = np.random.randint(len(self.config.objects[self.constants.background_label]), size=1)[0]
+        background_index = np.random.randint(len(self.config.objects[self.constants.background_label]), size=1)[0] % len(self.config.objects[self.constants.background_label])
         background = self.scale(cv2.imread(self.config.objects[self.constants.background_label][background_index], cv2.IMREAD_COLOR))
         background = self.coverInputDimensions(background)
         #TODO: central and/or random crop (not necessarily top-left as now)
@@ -69,15 +70,22 @@ class DataAugmentationDataset(Dataset):
         return random_class_index, current_object
 
     def __getitem__(self, index, max_attempts=10):
-        class_index, current_object = self.randomObject(index)
-        objects_in_image = torch.FloatTensor(len(self.config.classes))
-        objects_in_image.zero_()
-        objects_in_image[class_index] = 1
-        background = self.randomBackground()
-        input_image, target_mask = self.image_utils.pasteRGBAimageIntoRGBimage(current_object, background, 0, 0)
-        target_mask_all_classes = self.image_utils.blankImage(self.constants.input_width, self.constants.input_height, len(self.config.classes))
-        target_mask_all_classes[:, :, class_index : class_index + 1] = target_mask[:, :]
-        target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1] = 255 - target_mask[:,:]
-        if target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1].sum() > 0:
-            objects_in_image[self.constants.background_mask_index] = 1
-        return transforms.ToTensor()(input_image), transforms.ToTensor()(target_mask_all_classes), objects_in_image
+        input_image, target_mask_all_classes, objects_in_image = None, None, None
+        if np.random.uniform(0, 1, 1)[0] <= 0.95:
+            input_image, target_mask_all_classes, objects_in_image = self.environment.getSampleWithIndex(index, self.config.is_train)
+        if input_image is None or  target_mask_all_classes is None or objects_in_image is None:
+            class_index, current_object = self.randomObject(index)
+            objects_in_image = torch.FloatTensor(len(self.config.classes))
+            objects_in_image.zero_()
+            objects_in_image[class_index] = 1
+            background = self.randomBackground()
+            input_image, target_mask = self.image_utils.pasteRGBAimageIntoRGBimage(current_object, background, 0, 0)
+            target_mask_all_classes = self.image_utils.blankImage(self.constants.input_width, self.constants.input_height, len(self.config.classes))
+            target_mask_all_classes[:, :, class_index : class_index + 1] = target_mask[:, :]
+            target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1] = 255 - target_mask[:,:]
+            if target_mask_all_classes[:, :, self.constants.background_mask_index:self.constants.background_mask_index + 1].sum() > 0:
+                objects_in_image[self.constants.background_mask_index] = 1
+            input_image = transforms.ToTensor()(input_image)
+            target_mask_all_classes = transforms.ToTensor()(target_mask_all_classes)
+            self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_mask_all_classes, objects_in_image)
+        return input_image, target_mask_all_classes, objects_in_image
