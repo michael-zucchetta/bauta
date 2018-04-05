@@ -138,11 +138,14 @@ class Trainer():
 
     def visualLoggingOutput(self, network_output, target_mask_scaled, target_mask_roi):
         object_found, mask_scaled, mask, roi_align, bounding_boxes = network_output
+        current_found_index = 0
         for current_index in range(mask_scaled.size()[0]):
             for current_class in range(len(self.config.classes)):
                 cv2.imshow(f'Target Mask Scaled {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(target_mask_scaled.data[current_index][current_class]))
                 cv2.imshow(f'Output Mask Scaled {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask_scaled.data[current_index][current_class]))
-                cv2.imshow(f'Output Mask {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_index][current_class]))
+                if object_found[current_index][current_class].data[0] == 1:
+                    cv2.imshow(f'Output Found Mask {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_found_index]))
+                    current_found_index = current_found_index + 1
         cv2.waitKey(0)
 
     def logLoss(self, losses, epoch, train_dataset_index, dataset_train):
