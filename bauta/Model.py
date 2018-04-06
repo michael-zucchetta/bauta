@@ -49,9 +49,9 @@ class Model(nn.Module):
         self.upsample = nn.Upsample(scale_factor=self.scale, mode='nearest')
 
 
-    def forwardDilations(self, inupt):
-        output = inupt
-        outputs_sum = inupt
+    def forwardDilations(self, input):
+        output = input
+        outputs_sum = input
         for dilation_block_index in range(self.dilation_blocks_count):
             output = self.forwardInDilationGroup(outputs_sum, dilation_block_index)
             outputs_sum = outputs_sum + output
@@ -69,8 +69,8 @@ class Model(nn.Module):
         input, only_masks = input
         initial_filtering = F.relu(self.initial_filter(input))
         input_size = initial_filtering.size()
-        initial_filterin_pooled, pool_indices = self.pool(initial_filtering)
-        embeddings = self.forwardDilations(initial_filterin_pooled)
+        initial_filtering_pooled, pool_indices = self.pool(initial_filtering)
+        embeddings = self.forwardDilations(initial_filtering_pooled)
         fully_connected_output_1 = F.relu(self.fully_connected_1(embeddings))
         mask_scaled = F.sigmoid(self.fully_connected_2(fully_connected_output_1))
         input_width = input.size()[3]
