@@ -55,7 +55,7 @@ class EnvironmentUtils():
         objects_in_image.zero_()
         return target_mask_all_classes, objects_in_image
 
-    def _retrieveAlphaMasksAndObjects(self, alpha_mask_image_paths, classes):
+    def _retrieveAlphaMasksAndObjects(self, alpha_mask_image_paths, classes, index_path):
         target_mask_all_classes, objects_in_image = self.blankMasksAndObjectsInImage(classes)
         for alpha_image_path in alpha_mask_image_paths:
             splitted_alpha_file_path = re.sub(f'{constants.object_ext}$', '', alpha_image_path).split(constants.dataset_mask_prefix)
@@ -75,7 +75,7 @@ class EnvironmentUtils():
             input_image, target_mask_all_classes, objects_in_image = None, None, None
             if len(alpha_mask_image_paths) > 0:
                 input_image = cv2.imread(input_filename_path, cv2.IMREAD_COLOR)
-                target_mask_all_classes, objects_in_image = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes)
+                target_mask_all_classes, objects_in_image = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
             return input_image, target_mask_all_classes, objects_in_image
         else:
              return None, None, None
