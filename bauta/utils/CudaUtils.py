@@ -4,9 +4,9 @@ from torch.autograd import Variable
 
 class CudaUtils():
 
-    def cudifyAsReference(self, tensors, refernce_tensor):
-        if isinstance(refernce_tensor, (torch.cuda.FloatTensor)):
-            return self.cudify(tensors, refernce_tensor.get_device())
+    def cudifyAsReference(self, tensors, reference_tensor):
+        if isinstance(reference_tensor, (torch.cuda.FloatTensor)):
+            return self.cudify(tensors, reference_tensor.get_device())
         else:
             return tensors
 

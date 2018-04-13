@@ -9,7 +9,7 @@ from urllib import parse
 
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.SystemUtils import SystemUtils
-from bauta.Constants import Constants
+from bauta.Constants import constants
 
 
 class DatasetGenerator():
@@ -18,11 +18,10 @@ class DatasetGenerator():
         self.data_path = data_path
         self.system = SystemUtils()
         self.logger = self.system.getLogger(self)
-        self.constants = Constants()
 
     def createConfigurationFile(self, class_names):
         try:
-            class_names_without_background = list(filter(lambda class_name: class_name != self.constants.background_label, class_names))
+            class_names_without_background = list(filter(lambda class_name: class_name != constants.background_label, class_names))
             configuration_file_path = os.path.join(self.data_path, "config.yaml")
             with open(configuration_file_path, 'w') as config_yaml_file:
                 classes_as_string = [f'  - {class_name}\n' for class_name in class_names_without_background]
@@ -39,7 +38,7 @@ class DatasetGenerator():
         self.makeDefaultDirs()
         environment = EnvironmentUtils(self.data_path)
         class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path)]
-        if self.constants.background_label not in class_names:
+        if constants.background_label not in class_names:
              self.logger.error(f'The class "background" is compulsory but it was not found. Thus dataset cannot be created.', e)
              return None
         self.createConfigurationFile(class_names)

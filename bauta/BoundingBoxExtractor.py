@@ -33,7 +33,7 @@ class BoundingBoxExtractor(nn.Module):
         y_min = torch.min(y_coordinates, -1)[0].unsqueeze(2)
         x_max = torch.max(x_coordinates, -1)[0].unsqueeze(2)
         y_max = torch.max(y_coordinates, -1)[0].unsqueeze(2)
-        object_found = (y_max > y_min) * (x_max > x_min)
+        object_found = ( (y_max > y_min) * (x_max > x_min) ).int()
         bounding_boxes_scaled = torch.cat((x_min, y_min, x_max, y_max), 2)
         bounding_boxes = bounding_boxes_scaled * self.scale
         return object_found, bounding_boxes_scaled, bounding_boxes, mask_binary

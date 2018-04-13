@@ -20,18 +20,17 @@ from bauta.Model import Model
 from bauta.DatasetConfiguration import DatasetConfiguration
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageUtils import ImageUtils
-from bauta.Constants import Constants
+from bauta.Constants import constants
 from bauta.utils.CudaUtils import CudaUtils
 from bauta.utils.RoIAlignUtils import RoIAlignUtils
+from bauta.utils.SystemUtils import SystemUtils
 
 class Trainer():
-
 
     def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu,\
         loss_scaled_weight, loss_unscaled_weight, loss_objects_found_weight, only_masks):
         super(Trainer, self).__init__()
         self.only_masks = only_masks
-        self.constants = Constants()
         self.config = DatasetConfiguration(True, data_path)
         self.data_path = data_path
         self.visual_logging = visual_logging
@@ -43,9 +42,11 @@ class Trainer():
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.gpu = gpu
+        self.system_utils = SystemUtils()
+        self.logger = self.system_utils.getLogger(self)
         self.image_utils = ImageUtils()
         self.environment = EnvironmentUtils(self.data_path)
-        self.bounding_box_extractor = BoundingBoxExtractor(self.constants.input_width, self.constants.input_height, 8)
+        self.bounding_box_extractor = BoundingBoxExtractor(constants.input_width, constants.input_height, 8)
         self.mask_detector_model = self.loadModel()
         self.objects_found_loss = nn.L1Loss()
         self.optimizer = torch.optim.SGD([
@@ -92,7 +93,7 @@ class Trainer():
         for i, (input_images, target_mask, target_objects_in_image) in enumerate(test_loader):
             input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
             if self.visual_logging:
-                self.visualLoggingDataset(input_images, target_mask)
+               self.visualLoggingDataset(input_images, target_mask)
             network_output = self.mask_detector_model.forward([input_images, self.only_masks])
             losses = self.computeLoss(network_output, target_mask, target_objects_in_image)
             average_current_test_loss = average_current_test_loss +  losses[0].data[0]
@@ -101,7 +102,7 @@ class Trainer():
         return average_current_test_loss
 
     def log(self, text):
-        print(f"{datetime.datetime.utcnow()} -- MaskDetectorTrain ==> {text}")
+        self.logger.info(f"{datetime.datetime.utcnow()} -- {text}")
 
     def testAndSaveIfImproved(self, best_test_loss):
         average_current_test_loss = self.testLoss()

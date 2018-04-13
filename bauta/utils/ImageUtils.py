@@ -10,22 +10,50 @@ import numpy as np
 import cv2
 import traceback
 
-from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.BoundingBox import BoundingBox
 from bauta.ImageInfo import ImageInfo
+from bauta.Constants import constants
 
 class ImageUtils():
 
-    def pasteRGBAimageIntoRGBimage(self, rgba_image, rgb_image, x_offset, y_offset):
+    def _pasteImage(self, pasted_image, pasted_image_mask, image_background, x_offset, y_offset):
+        pasted_image_info = ImageInfo(pasted_image)
+        image_background_info = ImageInfo(image_background)
+        image_background_bbox = BoundingBox(top=0, left=0, bottom=image_background_info.height, right=image_background_info.width)
+        pasted_image_bbox = BoundingBox(top=y_offset, left=x_offset, bottom=y_offset + pasted_image_info.height, right=x_offset + pasted_image_info.width)
+        intersection_bbox = pasted_image_bbox.intersect(image_background_bbox)
+
+        pasted_image_y_offset_from, pasted_image_x_offset_from, pasted_image_y_offset_to, pasted_image_x_offset_to = 0, 0, 0, 0
+
+        if image_background_bbox.left > pasted_image_bbox.left:
+            pasted_image_x_offset_from = -pasted_image_bbox.left
+        if image_background_bbox.top > pasted_image_bbox.top:
+            pasted_image_y_offset_from = -pasted_image_bbox.top
+        pasted_image_x_offset_to = min(pasted_image_x_offset_from + intersection_bbox.width - 1, pasted_image_info.width)
+        pasted_image_y_offset_to = min(pasted_image_y_offset_from + intersection_bbox.height - 1, pasted_image_info.height)
+
+        image_background_y_offset_from, image_background_x_offset_from, image_background_y_offset_to, image_background_x_offset_to = 0, 0, 0, 0
+        if x_offset >= 0:
+            image_background_x_offset_from = x_offset
+        if y_offset >= 0:
+            image_background_y_offset_from = y_offset
+        image_background_x_offset_to = image_background_x_offset_from + pasted_image_x_offset_to - pasted_image_x_offset_from
+        image_background_y_offset_to = image_background_y_offset_from + pasted_image_y_offset_to - pasted_image_y_offset_from
+
+        for channel_index in range(3):
+            image_background[image_background_y_offset_from : image_background_y_offset_to, image_background_x_offset_from : image_background_x_offset_to, channel_index] = \
+                    (pasted_image[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to, channel_index] * (pasted_image_mask[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to] / 255)) + \
+                    (image_background[image_background_y_offset_from : image_background_y_offset_to, image_background_x_offset_from : image_background_x_offset_to, channel_index] * (1 - (pasted_image_mask[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to] / 255)))
+        return image_background
+
+    def pasteRGBAimageIntoRGBimage(self, rgba_image, rgb_image, x_offset, y_offset, include_alpha_channel=False):
         image_info = ImageInfo(rgba_image)
         object_rgb  = rgba_image[:, :, 0:3]
         object_mask = rgba_image[:, :, 3]
-        for channel_index in range(3):
-            rgb_image[y_offset : image_info.height + y_offset, x_offset : image_info.width + x_offset, channel_index] = \
-                (object_rgb[:, :, channel_index] * (object_mask / 255)) + \
-                (rgb_image[y_offset : image_info.height + y_offset, x_offset : image_info.width + x_offset, channel_index] * (1 - (object_mask / 255)))
+        rgb_image = self._pasteImage(object_rgb, object_mask, rgb_image, x_offset, y_offset)
+
         image_info_rgb = ImageInfo(rgb_image)
-        mask = np.zeros( (image_info_rgb.height, image_info_rgb.width, 1), dtype=np.uint8)
+        mask = self.blankImage(image_info_rgb.width, image_info_rgb.height, 1)
         mask[y_offset : image_info.height + y_offset, x_offset : image_info.width + x_offset, 0] = object_mask[:, :]
         return rgb_image, mask
 
@@ -47,16 +75,15 @@ class ImageUtils():
 
     def paddingScale(self, input_image, input_width, input_height):
         image_info = ImageInfo(input_image)
-        environment = EnvironmentUtils()
         # image scaled to input field keeping aspect ratio
-        if environment.input_width / environment.input_height <= image_info.aspect_ratio:
-            new_height = environment.input_height
-            new_width  = int(environment.input_height * image_info.aspect_ratio)
+        if constants.input_width / constants.input_height <= image_info.aspect_ratio:
+            new_height = constants.input_height
+            new_width  = int(constants.input_height * image_info.aspect_ratio)
             input_image_scaled = cv2.resize(input_image, (new_width, new_height))
             return input_image_scaled, new_height, new_width
         else:
-            new_width = environment.input_width
-            new_height = int(environment.input_width * image_info.aspect_ratio)
+            new_width = constants.input_width
+            new_height = int(constants.input_width * image_info.aspect_ratio)
             input_image_scaled = cv2.resize(input_image, (new_width, new_height))
             return input_image_scaled, new_height, new_width
 

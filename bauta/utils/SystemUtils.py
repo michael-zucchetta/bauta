@@ -12,15 +12,21 @@ class SystemUtils():
         else:
             return False
 
-    def imagesInFolder(self, folder):
+    def imagesInFolder(self, folder, regex=None):
         if not os.path.isdir(folder):
             return []
+        elif regex is not None:
+            return [file_path for file_path in os.listdir(folder) if re.search(regex, file_path)]
         else:
             return list(filter(lambda filename: self.hasExtension(os.path.join(folder, filename), ['png', 'jpg', 'jpeg']), os.listdir(folder)))
 
     def makeDirIfNotExists(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
+
+    def removeFilesFromDir(self, dir_path):
+        if os.path.exists(dir_path):
+            [os.remove(os.path.join(dir_path, file_to_remove)) for file_to_remove in os.listdir(dir_path)]
 
     def tryToRun(self, method, validate_result, max_attempts=10):
         current_attempt = 0
