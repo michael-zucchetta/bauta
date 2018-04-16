@@ -31,7 +31,7 @@ class DatasetConfiguration():
         for index, class_label in enumerate(self.classes):
             class_path = os.path.join(self.objects_path, class_label)
             self.objects[class_label] = [os.path.join(class_path, image_file) for image_file in system_utils.imagesInFolder(class_path)]
-        self.length = functools.reduce(operator.add, [len(class_label) for class_label in self.objects], 0)
+        self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
 
     def classIndexesExcludingBackground(self):
         return list(range(1, len(self.classes)))

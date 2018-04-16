@@ -43,11 +43,10 @@ class Model(nn.Module):
         self.fully_connected_1 = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks, filter_banks * 5, filter_size, 1)
         self.fully_connected_2 = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks * 5, self.classes, filter_size, 1)
 
-        self.refine = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks + 1, filter_banks, filter_size, 1)
-        self.fully_connected_refiner = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks, 1, filter_size, 1)
+        self.upsample = nn.Upsample(scale_factor=self.scale, mode='bilinear')
 
-        self.upsample = nn.Upsample(scale_factor=self.scale, mode='nearest')
-
+        self.fully_connected_refiner_middle = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks + 1, filter_banks, (scale * 3) - 1, 1)
+        self.fully_connected_refiner_final = self.createDilatedConvolutionPreservingSpatialDimensions(filter_banks, 1, filter_size, 1)
 
     def forwardDilations(self, input):
         output = input
@@ -77,7 +76,7 @@ class Model(nn.Module):
         input_height = input.size()[2]
         bounding_box_extractor = cuda_utils.cudifyAsReference([BoundingBoxExtractor(input_width, input_height, self.scale)], input.data)[0]
         object_found, bounding_boxes_scaled, bounding_boxes = bounding_box_extractor(mask_scaled)
-        object_found = object_found.squeeze()
+        object_found = object_found.squeeze(2)
         if not only_masks:
             roi_align_scaled = RoIAlign(bounding_box_extractor.scaled_input_height, bounding_box_extractor.scaled_input_width)
             roi_align = RoIAlign(bounding_box_extractor.input_height, bounding_box_extractor.input_width)
@@ -86,8 +85,8 @@ class Model(nn.Module):
             mask_scaled_upsampled = self.upsample(mask_scaled)
             embeddings_bounding_box_upsampled = RoIAlignUtils.applyRoiAlign(roi_align, embeddings_upsampled, bounding_boxes, object_found)
             mask_scaled_bounding_box_upsampled, bounding_boxes_filtered = RoIAlignUtils.applyRoiAlignOneToOne(roi_align, mask_scaled_upsampled, bounding_boxes, object_found)
-            embeddings = F.relu(self.refine(torch.cat([embeddings_bounding_box_upsampled, mask_scaled_bounding_box_upsampled], 1)))
-            mask = F.sigmoid(self.fully_connected_refiner(embeddings))
+            embeddings = F.relu(self.fully_connected_refiner_middle(torch.cat([embeddings_bounding_box_upsampled, mask_scaled_bounding_box_upsampled], 1)))
+            mask = F.sigmoid(self.fully_connected_refiner_final(embeddings))
         else:
             mask, roi_align, bounding_boxes = None, None, None
         return object_found, mask_scaled, mask, roi_align, bounding_boxes

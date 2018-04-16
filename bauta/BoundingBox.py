@@ -9,10 +9,10 @@ class BoundingBox():
         if(left > right ):
             error_message = f"Bounding Box (top: {top}, left: {left}, bottom: {bottom}, right: {right}) cannot be created. Left({left}) should be smaller or equal than right({right})"
             raise Exception(error_message)
-        self._top    = top
-        self._left   = left
-        self._bottom = bottom
-        self._right  = right
+        self._top    = int(top)
+        self._left   = int(left)
+        self._bottom = int(bottom)
+        self._right  = int(right)
         self._width  = self._right  - self._left + 1
         self._height = self._bottom - self._top + 1
         self._area   = self._width  * self._height
@@ -27,7 +27,7 @@ class BoundingBox():
         return BoundingBox.fromOpenCVConnectedComponents(num_labels, labels, stats, centroids)
 
     def fromOpenCVConnectedComponents(num_labels, labels, stats, centroids):
-        boundin_boxes = []
+        bounding_boxes = []
         countour_areas = []
         for label_index in range(0, min(labels.shape[0], stats.shape[0])):
             countour_area = stats[label_index, cv2.CC_STAT_AREA]
@@ -35,11 +35,12 @@ class BoundingBox():
             label  = labels[label_index]
             top    = stats[label_index, cv2.CC_STAT_TOP]
             left   = stats[label_index, cv2.CC_STAT_LEFT]
-            bottom = top + stats[label_index, cv2.CC_STAT_HEIGHT]
-            right  = left + stats[label_index, cv2.CC_STAT_WIDTH]
-            bounding_box = BoundingBox(top, left, bottom, right)
-            boundin_boxes.append(bounding_box)
-        return boundin_boxes, countour_areas
+            bottom = top + stats[label_index, cv2.CC_STAT_HEIGHT] - 1
+            right  = left + stats[label_index, cv2.CC_STAT_WIDTH] - 1
+            if top < bottom and left < right:
+                bounding_box = BoundingBox(top, left, bottom, right)
+                bounding_boxes.append(bounding_box)
+        return bounding_boxes, countour_areas
 
     def intersect(self, bounding_box):
         intersection_left   = max(self.left, bounding_box.left)

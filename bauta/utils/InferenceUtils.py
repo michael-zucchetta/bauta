@@ -1,120 +1,137 @@
 from PIL import Image
+import sys
+import cv2
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 from torch.autograd import Variable
-from bauta.MaskDetectorDataset import MaskDetectorDataset
-import sys
-import cv2
-import numpy as np
-from bauta.BoundingBox import BoundingBox
-from bauta.ImageUtils import ImageUtils
-from bauta.EnvironmentUtils import EnvironmentUtils
 import torch.nn.functional as F
-from torch.autograd import Variable
+
+from bauta.DatasetConfiguration import DatasetConfiguration
+from bauta.BoundingBox import BoundingBox
+from bauta.Constants import constants
+from bauta.utils.ImageUtils import ImageUtils
+from bauta.ImageInfo import ImageInfo
+from bauta.InferenceResult import InferenceResult
 
 class InferenceUtils():
 
-    def __init__(self):
-        self.environment = EnvironmentUtils()
+    def __init__(self, data_path, visual_logging):
         self.loader = transforms.Compose([transforms.ToTensor()])
         self.image_utils = ImageUtils()
+        self.config = DatasetConfiguration(False, data_path)
+        self.visual_logging = visual_logging
 
     def maskScale(self, input_image):
-        return self.image_utils.paddingScale(input_image, self.environment.input_width, self.environment.input_height)
+        return self.image_utils.paddingScale(input_image, constants.input_width, constants.input_height)
 
-    def toOriginalCoordinateFromNetworkInput(self, x, y, original_width, original_height, network_input_width, network_input_height):
-        width_factor_input = original_width / network_input_width
-        height_factor_input = original_height/ network_input_height
+    def toOriginalCoordinateFromNetworkInput(self, x, y, mask_width, mask_height, network_input_width, network_input_height):
+        width_factor_input = mask_width / network_input_width
+        height_factor_input = mask_height/ network_input_height
         x = x * width_factor_input
         y = y * height_factor_input
         return x, y
 
-    def toOriginalCoordinate(self, x, y, original_width, original_height, network_input_width, network_input_height, bounding_box):
+    def toOriginalCoordinate(self, x, y, mask_width, mask_height, network_input_width, network_input_height, bounding_box):
         bounding_box_width = bounding_box[2] - bounding_box[0]
         bounding_box_height = bounding_box[3] - bounding_box[1]
         width_factor_box = bounding_box_width / network_input_width
         height_factor_box = bounding_box_height / network_input_height
         x = x * width_factor_box
         y = y * height_factor_box
-        x, y = self.toOriginalCoordinateFromNetworkInput(x, y, original_width, original_height, network_input_width, network_input_height)
+        x, y = self.toOriginalCoordinateFromNetworkInput(x, y, mask_width, mask_height, network_input_width, network_input_height)
         return x, y
 
-    def maskBinaryMatrix(self, mask_detector, input_image):
-        original_height = input_image.shape[0]
-        original_width  = input_image.shape[1]
+    def logMasks(self, mask, object_found):
+        if self.visual_logging:
+            current_found_index = 0
+            for current_index in range(object_found.size()[0]):
+                for current_class in range(len(self.config.classes)):
+                    if object_found[current_index][current_class].data[0] == 1:
+                        cv2.imshow(f'Output Found Mask {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_found_index]))
+                        current_found_index = current_found_index + 1
+            cv2.waitKey(0)
+
+    def extractMasks(self, mask_detector, input_image):
+        image_info = ImageInfo(input_image)
         input_image_scaled, network_input_height, network_input_width = self.maskScale(input_image)
         result = torch.FloatTensor(network_input_height, network_input_width).zero_()
         input_image_scaled_loaded = self.loader(input_image_scaled)
         input_image_scaled_loaded = Variable(input_image_scaled_loaded).unsqueeze(0)
-        mask_scaled, mask, roi_align_scaled, roi_align, bounding_boxes, bounding_boxes_scaled, boxes_index = mask_detector([input_image_scaled_loaded, True])
-        input_image_scaled_loaded = roi_align(input_image_scaled_loaded, bounding_boxes, boxes_index)[0]
-        probabilities = mask[0][0].data.numpy()
-        input_image_scaled = input_image_scaled_loaded.data.transpose(0,2).transpose(0,1).numpy()
-        width, height = self.toOriginalCoordinate(input_image_scaled.shape[1], input_image_scaled.shape[0], original_width, original_height, network_input_width, network_input_height, bounding_boxes.data[0])
-        x_min, y_min = self.toOriginalCoordinateFromNetworkInput(bounding_boxes.data[0][0], bounding_boxes.data[0][1], original_width, original_height, network_input_width, network_input_height)
-        x_max, y_max = int(x_min + width), int(y_min + height)
-        probabilities = cv2.resize(probabilities, (int(width),int(height)))
-        input_image_bounding_box = np.zeros((int(y_max) - int(y_min), int(x_max) - int(x_min), 3), dtype=np.uint8)
-        for channel in range(3):
-            input_image_bounding_box[:, :, channel] = input_image[int(y_min):int(y_max), int(x_min):int(x_max), channel]
-        return probabilities, input_image_bounding_box
+        object_found, _, mask, _, bounding_boxes = mask_detector([input_image_scaled_loaded, False])
+        self.logMasks(mask, object_found)
+        inference_results = []
+        mask_found_index = 0
+        for class_index in range(object_found.size()[1]):
+            if(object_found[0][class_index].data[0] == 1):
+                bounding_box = bounding_boxes[0][mask_found_index].data
+                width, height = self.toOriginalCoordinate(input_image_scaled.shape[1], input_image_scaled.shape[0], image_info.width, image_info.height, network_input_width, network_input_height, bounding_box)
+                x_min, y_min = self.toOriginalCoordinateFromNetworkInput(bounding_box[0], bounding_box[1], image_info.width, image_info.height, network_input_width, network_input_height)
+                x_max, y_max = int(x_min + width - 1), int(y_min + height - 1)
+                current_mask_as_numpy = self.image_utils.toNumpy(mask[mask_found_index].data)
+                current_mask_as_numpy = cv2.resize(current_mask_as_numpy, (int(width),int(height)))
+                bounding_box = BoundingBox(y_min, x_min, y_max, x_max)
+                inference_result = InferenceResult( \
+                    class_label = self.config.classes[class_index],
+                    bounding_box  = bounding_box,
+                    mask = current_mask_as_numpy )
+                mask_found_index = mask_found_index + 1
+                inference_results.append(inference_result)
+                assert current_mask_as_numpy.shape[0] == bounding_box.height
+                assert current_mask_as_numpy.shape[1] == bounding_box.width
+        return inference_results
 
-    def scaleTo255AndThresholdAboveStandardDeviation(self, mask_location_matrix, threshold_multiplicative_factor=1.0):
-        standard_deviation = mask_location_matrix.std()
-        mask_location_matrix[(mask_location_matrix > (standard_deviation * threshold_multiplicative_factor))] = 1
-        mask_location_matrix[(mask_location_matrix < 1)] = 0
-        mask_location_matrix[:] = mask_location_matrix[:] * 255
-        return mask_location_matrix
+    def extractConnectedComponents(self, inference_results):
+        new_inference_results = []
+        for index, inference_result in enumerate(inference_results):
+            mask = (inference_result.mask * 255).astype(np.uint8)
+            original_bounding_box = inference_result.bounding_box
+            width, height = mask.shape
+            image_area = (width + 1) * (height + 1)
+            _, contour, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
+            bounding_boxes_from_connected_components, contour_areas = BoundingBox.fromOpenCVConnectedComponentsImage(mask, min_threshold=64, max_threshold=255)
+            for boxes_index in range(len(bounding_boxes_from_connected_components)):
+                bounding_box = bounding_boxes_from_connected_components[boxes_index]
+                if (bounding_box.area / image_area) >= 0.095 and (len(bounding_boxes_from_connected_components) == 1 or (contour_areas[boxes_index] / image_area) < 1.0):
+                    bounding_box_in_image = BoundingBox(bounding_box.top + original_bounding_box.top,
+                        bounding_box.left + original_bounding_box.left,
+                        bounding_box.top  + original_bounding_box.top  + bounding_box.height - 1,
+                        bounding_box.left + original_bounding_box.left + bounding_box.width  - 1)
+                    cropped_mask = mask[bounding_box.top : bounding_box.top + bounding_box.height,
+                        bounding_box.left : bounding_box.left + bounding_box.width]
+                    assert cropped_mask.shape[0] == bounding_box_in_image.height
+                    assert cropped_mask.shape[1] == bounding_box_in_image.width
+                    inference_result = InferenceResult( \
+                        class_label = inference_result.class_label,
+                        bounding_box  = bounding_box_in_image,
+                        mask = cropped_mask,
+                        contour_area = contour_areas[boxes_index])
+                    new_inference_results.append(inference_result)
+        return new_inference_results
 
-    def maskSegments(self, mask_location_matrix, show_results=False):
-        mask_location_matrix = mask_location_matrix.astype(np.uint8)
-        width, height = mask_location_matrix.shape
-        image_area = (width + 1) * (height + 1)
-        if show_results:
-            im2, contours, hierarchy = cv2.findContours(mask_location_matrix, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
-            mask_location_matrix_rgb = np.ones( (mask_location_matrix.shape[0], mask_location_matrix.shape[1], 3), dtype=np.uint8)
-            mask_location_matrix_rgb[:,:, 0] = mask_location_matrix.copy()[:,:]
-            cv2.drawContours(mask_location_matrix_rgb, contours, -1, (0, 0, 255), 3)
-            cv2.imshow(f'mask_location_matrix contour', mask_location_matrix_rgb)
-        bounding_boxes = []
-        bounding_boxes_from_connected_components, contour_areas = BoundingBox.fromOpenCVConnectedComponentsImage(mask_location_matrix, min_threshold=64, max_threshold=255)
-        for boxes_index in range(len(bounding_boxes_from_connected_components)):
-            bounding_box = bounding_boxes_from_connected_components[boxes_index]
-            # these two constants (0.095 and 1.0) shall be parametrized
-            if (bounding_box.area / image_area) >= 0.095 and (len(bounding_boxes_from_connected_components) == 1 or (contour_areas[boxes_index] / image_area) < 1.0):
-                bounding_boxes.append(bounding_box)
-        return bounding_boxes, mask_location_matrix.copy()
-
-    def generateIndividualDressesWithWhiteBackground(self, bounding_boxes, mask_location_matrix, image):
-        """Returns
-            list of images generated by:
-            for each bounding box in 'bounding_boxes', crop 'image', then remove the
-            background using 'mask_location_matrix'.
-         """
-        # Resize mask_location_matrix to the image
-        image = self.image_utils.addAlphaChannelToImage(image)
-        height, width, _ = image.shape
-        original_height, original_width = mask_location_matrix.shape
-        mask_location_matrix = cv2.resize(mask_location_matrix, (width, height))
-        images = []
-        images_with_background = []
-        for bounding_box in bounding_boxes:
-            # Resize Bounding Boxes
-            bounding_box = bounding_box.resize(original_width, original_height, width, height)
-            # Crop Original Image
-            image_cropped = image[bounding_box.top: bounding_box.bottom + 1,
-                                    bounding_box.left: bounding_box.right + 1,:]
-            images_with_background.append(image_cropped)
-            # Crop Location Matrix
-            mask_location_matrix_cropped = mask_location_matrix[bounding_box.top: bounding_box.bottom + 1,
-                                                                    bounding_box.left: bounding_box.right + 1]
-            red_channel, green_channel, blue_channel, _ = cv2.split(image_cropped)
-            mask_location_matrix_cropped = mask_location_matrix_cropped.astype(np.uint8)
-            image_cropped_with_alpha_channel = cv2.merge((red_channel.astype(np.float), green_channel.astype(np.float), blue_channel.astype(np.float), mask_location_matrix_cropped.astype(np.float)))
-            # Mege location matrix and original image crop
-            mask_with_white_background = np.ones( (bounding_box.height, bounding_box.width, 4), dtype=np.uint8) * 255
-            mask_with_white_background = self.image_utils.composeImages(mask_with_white_background, image_cropped_with_alpha_channel, 0, 0)
-            images.append(mask_with_white_background)
-        return images, images_with_background
+    def extractObjects(self, inference_results, original_image):
+        new_inference_results = []
+        for inference_result in inference_results:
+            image = original_image.copy()
+            bounding_box = inference_result.bounding_box
+            mask = inference_result.mask
+            image_height, image_width, _ = image.shape
+            mask_height, mask_width = mask.shape
+            image_cropped = image[bounding_box.top : bounding_box.bottom + 1,
+                                    bounding_box.left : bounding_box.right + 1, :]
+            for channel in range(3):
+                image_cropped[:,:, channel] = image_cropped[:,:, channel] * (mask[:,:] / 255)
+            blue_channel, green_channel, red_channel  = cv2.split(image_cropped)
+            image_cropped_with_alpha_channel = cv2.merge((blue_channel, \
+                green_channel, red_channel, mask))
+            inference_result = InferenceResult(\
+                class_label = inference_result.class_label,
+                bounding_box  = inference_result.bounding_box,
+                mask = inference_result.mask,
+                contour_area = inference_result.contour_area,
+                image = image_cropped_with_alpha_channel)
+            new_inference_results.append(inference_result)
+        return new_inference_results

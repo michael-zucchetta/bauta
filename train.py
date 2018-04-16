@@ -16,15 +16,13 @@ def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learni
     if not reset_model:
         reset_model_classes = None
     if only_mask:
-        loss_scaled_weight = 0.95
+        loss_scaled_weight = 1.0
         loss_unscaled_weight = 0.0
-        loss_objects_found_weight = 0.05
     else:
-        loss_scaled_weight = 0.6
-        loss_unscaled_weight = 0.2
-        loss_objects_found_weight = 0.1
+        loss_scaled_weight = 0.5
+        loss_unscaled_weight = 0.5
     trainer = Trainer(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu, \
-        loss_scaled_weight, loss_unscaled_weight, loss_objects_found_weight, only_mask)
+        loss_scaled_weight, loss_unscaled_weight, only_mask)
     trainer.train()
 
 if __name__ == '__main__':

@@ -7,6 +7,12 @@ if ! [ -x "$(command -v conda)" ]; then
   exit 1
 fi
 BAUTA_HOME="$(pwd)"
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     machine=Linux;;
+    Darwin*)    machine=Mac;;
+    *)          machine="UNKNOWN:${unameOut}"
+esac
 conda update -n base conda --yes
 echo "Installing anaconda environment 'bauta' with all the required dependencies..."
 conda create --name bauta python=3.6 --yes
@@ -14,7 +20,12 @@ source activate bauta
 if ! [ -x "$(command -v nvcc)" ];
 then
   echo "CUDA not detected"
-  conda install pytorch-cpu torchvision -c pytorch
+  if [ "$machine" == "Mac" ];
+  then
+    conda install pytorch torchvision -c pytorch
+  else
+    conda install pytorch-cpu torchvision -c pytorch
+  fi
 else
   CUDA_VERSION="$(nvcc --version --disable-warnings | grep -Po "V(\d)[.0*]*" | awk '{print substr($0,2,1)}')"
   case "$CUDA_VERSION" in
@@ -32,14 +43,6 @@ conda install --yes click
 conda install --yes pyyaml
 conda install --yes requests
 conda install --yes coverage
-unameOut="$(uname -s)"
-case "${unameOut}" in
-    Linux*)     machine=Linux;;
-    Darwin*)    machine=Mac;;
-    CYGWIN*)    machine=Cygwin;;
-    MINGW*)     machine=MinGw;;
-    *)          machine="UNKNOWN:${unameOut}"
-esac
 if [ "$machine" == "Mac" ];
 then
   #

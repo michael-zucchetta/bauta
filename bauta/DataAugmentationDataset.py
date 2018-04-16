@@ -73,10 +73,10 @@ class DataAugmentationDataset(Dataset):
         current_object = cv2.imread(self.config.objects[random_class][object_index], cv2.IMREAD_UNCHANGED)
         current_object = self.imageWithinInputDimensions(current_object)
         return random_class_index, current_object
-    
+
     def subtractSubMaskFromMainMask(self, all_masks, sub_mask, object_index):
         all_masks[:, :, object_index : object_index + 1] = cv2.subtract(all_masks[:, :, object_index : object_index + 1], sub_mask[:,:]).reshape(sub_mask.shape)
- 
+
     def addSubMaskFromMainMask(self, all_masks, sub_mask, object_index):
         all_masks[:, :, object_index : object_index + 1] = cv2.add(all_masks[:, :, object_index : object_index + 1], sub_mask[:,:]).reshape(sub_mask.shape)
 

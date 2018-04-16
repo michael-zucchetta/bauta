@@ -28,7 +28,7 @@ from bauta.utils.SystemUtils import SystemUtils
 class Trainer():
 
     def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu,\
-        loss_scaled_weight, loss_unscaled_weight, loss_objects_found_weight, only_masks):
+        loss_scaled_weight, loss_unscaled_weight, only_masks):
         super(Trainer, self).__init__()
         self.only_masks = only_masks
         self.config = DatasetConfiguration(True, data_path)
@@ -37,10 +37,10 @@ class Trainer():
         self.reset_model = reset_model
         self.loss_scaled_weight = loss_scaled_weight
         self.loss_unscaled_weight = loss_unscaled_weight
-        self.loss_objects_found_weight = loss_objects_found_weight
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.test_loss_history = []
         self.gpu = gpu
         self.system_utils = SystemUtils()
         self.logger = self.system_utils.getLogger(self)
@@ -67,8 +67,7 @@ class Trainer():
         loss_objects_found = self.objects_found_loss(object_found.float(), target_objects_in_image)
         target_mask_scaled = nn.MaxPool2d(8, 8, return_indices=False)(target_mask)
         loss_scaled = self.focalLoss(mask_scaled, target_mask_scaled)
-        loss = ( self.loss_scaled_weight * loss_scaled ) + \
-            ( self.loss_objects_found_weight * loss_objects_found )
+        loss = self.loss_scaled_weight * loss_scaled
         if not self.only_masks:
             target_mask_filtered, target_bounding_boxes_filtered = RoIAlignUtils.applyRoiAlignOneToOne(roi_align, target_mask, bounding_boxes, object_found)
             loss_unscaled = self.focalLoss(mask, target_mask_filtered)
@@ -99,6 +98,7 @@ class Trainer():
             average_current_test_loss = average_current_test_loss +  losses[0].data[0]
             iterations = iterations + 1.0
         average_current_test_loss = average_current_test_loss / iterations
+        self.test_loss_history.append(average_current_test_loss)
         return average_current_test_loss
 
     def log(self, text):
