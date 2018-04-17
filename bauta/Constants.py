@@ -18,10 +18,6 @@ class Constants():
         self.dataset_item_filename = f'input{self.object_ext}'
         self.dataset_mask_prefix = r'_mask_'
         self.dataset_mask_prefix_regex = r'[0-9]+' + self.dataset_mask_prefix + '.+\.png$'
-        # TODO: add this as a parameter
-        self.max_objects_per_image = 10
-        # TODO: add this as a parameter
-        self.probability_checking_cache = 0.95
         self.max_image_retrieval_attempts = 5
 
     def datasetType(self, is_train):

@@ -80,10 +80,8 @@ class DataAugmentationDataset(Dataset):
     def addSubMaskFromMainMask(self, all_masks, sub_mask, object_index):
         all_masks[:, :, object_index : object_index + 1] = cv2.add(all_masks[:, :, object_index : object_index + 1], sub_mask[:,:]).reshape(sub_mask.shape)
 
-    def _getRandomNumberOfObjects():
-        return random.randint(1, constants.max_objects_per_image)
-
-    def generateAugmentedImage(self, index, random_number_of_objects=_getRandomNumberOfObjects()):
+    def generateAugmentedImage(self, index):
+        random_number_of_objects = random.randint(0, self.config.max_objects_per_image_sample)
         validateRandomObject = lambda result:  result is not None
         class_indexes_and_objects = [self.system_utils.tryToRun(lambda : self.randomObject(index), validateRandomObject, constants.max_image_retrieval_attempts)
                                      for _ in range(random_number_of_objects)]
@@ -113,7 +111,7 @@ class DataAugmentationDataset(Dataset):
 
     def __getitem__(self, index, max_attempts=10):
         input_image, target_mask_all_classes, objects_in_image = None, None, None
-        if np.random.uniform(0, 1, 1)[0] <= constants.probability_checking_cache:
+        if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             input_image, target_mask_all_classes, objects_in_image = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
 
         if input_image is None or  target_mask_all_classes is None or objects_in_image is None:
