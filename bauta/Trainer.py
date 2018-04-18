@@ -55,6 +55,7 @@ class Trainer():
         self.cuda_utils = CudaUtils()
         self.mask_detector_model, self.bounding_box_extractor, self.objects_found_loss = \
             self.cuda_utils.cudify([self.mask_detector_model, self.bounding_box_extractor, self.objects_found_loss], self.gpu)
+        self.epsilon = 1e-20
 
     def getWorkers(self):
         if self.visual_logging:
@@ -128,8 +129,13 @@ class Trainer():
 
     def focalLoss(self, mask, target_mask):
         mask_t = torch.mul(mask, target_mask) + torch.mul(mask - 1, target_mask - 1)
-        focal_loss = -torch.mul(torch.log(mask_t + 1e-20), (-mask_t + 1).pow(2))
-        return focal_loss.mean()
+        focal_loss = -torch.mul(torch.log(mask_t + self.epsilon), (-mask_t + 1).pow(2))
+        # No need for intersection-over-union (IoU) due to:
+        #  - Focal loss has zero error on intersection (intersection is the numerator in IoU and 0/X = 0)
+        #     Note: Focal loss is zero network segments correctly, but non-zero when the segmentation is wrong.
+        #  - Focal loss is non-zero for non-overlapping masks
+        #  - Dividing by 'target_mask' makes the error scale-independant.
+        return focal_loss.sum() / (target_mask.sum() + 1.0)
 
     def visualLoggingDataset(self, input_images, target_mask):
         for current_index in range(input_images.size()[0]):
