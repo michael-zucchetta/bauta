@@ -80,33 +80,27 @@ class DataAugmentationDataset(Dataset):
     def addSubMaskFromMainMask(self, all_masks, sub_mask, object_index):
         all_masks[:, :, object_index : object_index + 1] = cv2.add(all_masks[:, :, object_index : object_index + 1], sub_mask[:,:]).reshape(sub_mask.shape)
 
-    def generateAugmentedImage(self, index):
-        random_number_of_objects = random.randint(0, self.config.max_objects_per_image_sample)
+    def generateAugmentedImage(self, index, random_number_of_objects=None):
+        if random_number_of_objects is None:
+            random_number_of_objects = random.randint(0, self.config.max_objects_per_image_sample)
         validateRandomObject = lambda result:  result is not None
         class_indexes_and_objects = [self.system_utils.tryToRun(lambda : self.randomObject(index), validateRandomObject, constants.max_image_retrieval_attempts)
                                      for _ in range(random_number_of_objects)]
-        background = self.system_utils.tryToRun(self.randomBackground, validateRandomObject, constants.max_image_retrieval_attempts)
+        input_image = self.system_utils.tryToRun(self.randomBackground, validateRandomObject, constants.max_image_retrieval_attempts)
         target_mask_all_classes, objects_in_image = self.environment.blankMasksAndObjectsInImage(self.config.classes)
-        input_image = background
         target_mask_all_classes[:, :, constants.background_mask_index:constants.background_mask_index + 1] = 255
-        masks_ordering = []
+        classes_in_input = {constants.background_mask_index}
         for (class_index, class_object) in class_indexes_and_objects:
-            objects_in_image[class_index] = 1
-            resulting_object_mask = None
             distorted_class_object = self.image_distortions.applyTransformationsAndDistortions(class_object)
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
             self.addSubMaskFromMainMask(target_mask_all_classes, object_mask, class_index)
-            # possibly overwrites previous pasted images, hence, for every previous class, it subtract the new mask to the previous ones
-            for previous_class_index in masks_ordering:
-                if class_index != previous_class_index:
-                    self.subtractSubMaskFromMainMask(target_mask_all_classes, object_mask, previous_class_index)
-            self.subtractSubMaskFromMainMask(target_mask_all_classes, object_mask, constants.background_mask_index)
-            if not class_index in masks_ordering:
-                masks_ordering.append(class_index)
-        masks_ordering = [0] + masks_ordering
-        if target_mask_all_classes[:, :, constants.background_mask_index:constants.background_mask_index + 1].sum() > 0:
-            objects_in_image[constants.background_mask_index] = 1
-        self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_mask_all_classes, masks_ordering, self.config.classes)
+            # removes the current image from the existing masks that overlap it
+            for current_class_in_input in classes_in_input - {class_index}:
+                self.subtractSubMaskFromMainMask(target_mask_all_classes, object_mask, current_class_in_input)
+            classes_in_input.add(class_index)
+        for current_class_in_input in classes_in_input:
+            objects_in_image[current_class_in_input] = (target_mask_all_classes[:, :, current_class_in_input:current_class_in_input + 1].sum() > 0).astype(float)
+        self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_mask_all_classes, classes_in_input, self.config.classes)
         return input_image, target_mask_all_classes, objects_in_image
 
     def __getitem__(self, index, max_attempts=10):

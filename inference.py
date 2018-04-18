@@ -1,6 +1,7 @@
 import click
 import os
 import cv2
+import sys
 
 from bauta.Inferencer import Inferencer
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
