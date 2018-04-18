@@ -50,7 +50,7 @@ class TestDataAugmentationDataset(unittest.TestCase):
         def mocked_applyRotationDistortion(item_image):
             return original_applyRotationDistortion(item_image, angle_distortion=20)
         data_augmentation_dataset.image_distortions.applyRotationDistortion = mocked_applyRotationDistortion
-        data_augmentation_dataset.generateAugmentedImage(dataset_index, 3)
+        data_augmentation_dataset.generateAugmentedImage(dataset_index)
         
         mask_background_name = '0_mask_background.png'
         generated_background_mask = cv2.imread(os.path.join(data_path, 'dataset/train/', str(dataset_index), mask_background_name))

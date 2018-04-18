@@ -87,8 +87,11 @@ class ImageUtils():
             input_image_scaled = cv2.resize(input_image, (new_width, new_height))
             return input_image_scaled, new_height, new_width
 
-    def blankImage(self, width, height, channels):
-        blank_image = np.zeros( (height, width, channels), dtype=np.uint8)
+    def blankImage(self, width, height, channels=None):
+        if channels is not None:
+            blank_image = np.zeros( (height, width, channels), dtype=np.uint8)
+        else:
+            blank_image = np.zeros( (height, width), dtype=np.uint8)
         return blank_image
 
     def getAlphaChannel(self, image):

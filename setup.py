@@ -7,8 +7,8 @@ from distutils.core import setup
 setup(name='bauta',
       version='0.0.1',
       description='Framework and toolset for image segmentation',
-      author='Pau Carré Cardona',
-      author_email='pau.carre@gmail.com',
+      author='Pau Carré Cardona, Michael Zucchetta',
+      author_email='pau.carre@gmail.com, michael.zucchetta@gmail.com',
       url='https://github.com/gilt/bauta',
       packages=['bauta']
      )

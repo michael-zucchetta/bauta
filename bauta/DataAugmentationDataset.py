@@ -13,6 +13,7 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
+from bauta.utils.BasicBackgroundRemover import BasicBackgroundRemover
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageDistortions import ImageDistortions
@@ -33,6 +34,7 @@ class DataAugmentationDataset(Dataset):
         self.config = DatasetConfiguration(is_train, data_path)
         self.image_utils = ImageUtils()
         self.image_distortions = ImageDistortions()
+        self.basic_background_remover = BasicBackgroundRemover()
         self.logger = self.system_utils.getLogger(self)
 
     def __len__(self):
@@ -71,6 +73,7 @@ class DataAugmentationDataset(Dataset):
         random_class = self.config.classes[random_class_index]
         object_index = index % len(self.config.objects[random_class])
         current_object = cv2.imread(self.config.objects[random_class][object_index], cv2.IMREAD_UNCHANGED)
+        current_object = self.basic_background_remover.removeFlatBackgroundFromRGB(current_object)
         current_object = self.imageWithinInputDimensions(current_object)
         return random_class_index, current_object
 
