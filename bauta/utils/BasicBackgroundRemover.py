@@ -38,7 +38,6 @@ class BasicBackgroundRemover():
 
     def detectAndRemoveBackgroundColor(self, image):
         image_info = ImageInfo(image)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         color_borders = [image[0][0], image[image_info.height - 1][0], image[0][image_info.width - 1], image[image_info.height - 1][image_info.width - 1]]
         result = 255
         for color_border in color_borders:
