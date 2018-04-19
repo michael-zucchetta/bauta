@@ -4,6 +4,8 @@ import random
 import shutil
 import itertools
 
+import torch
+
 from bauta.DatasetGenerator import DatasetGenerator
 from bauta.utils.SystemUtils import SystemUtils
 from bauta.Trainer import Trainer
@@ -33,16 +35,34 @@ class TestTrainer(unittest.TestCase):
             file.write('./test/data/images/background/background_1.png\n./test/data/images/background/background_2.png')
         dataset_generator = DatasetGenerator(data_path)
         datasets_with_attributes = dataset_generator.generateDatasetFromListOfImages(images_path, 0.5, 5)
+        with open(f'{data_path}/config.yaml','a') as file:
+            file.write("\ndata_sampling:\n")
+            file.write("  probability_using_cache: 0.0\n")
         return images_path, data_path
 
     def removeDataset(images_path, data_path):
         shutil.rmtree(images_path)
         shutil.rmtree(data_path)
 
+
+    def test_focalLoss(self):
+        targets = torch.zeros(1, 3, 8, 8)
+        targets[0, 0, 0:8, 0:7] = 1
+        targets[0, 1, 0:8, 7:8] = 1
+        targets[0, 2, :, :] = 0
+        outputs = torch.zeros(1, 3, 8, 8)
+        outputs[0, 0, 0:8, 0:3] = 1 #  ~50% wrong
+        outputs[0, 1, 0:8, 0:7] = 1 # ~700% wrong
+        outputs[0, 2, 0:8, 0:8] = 0 # 100% correct
+        loss = Trainer.focalLoss(outputs, targets)
+        self.assertTrue(loss[0] / 50 < 1.1)
+        self.assertTrue(loss[1] / 700 < 1.1)
+        self.assertTrue(loss[2]  < 1e-3)
+
     def test_train_within_epoch_improves_loss(self):
         images_path, data_path = TestTrainer.createDataset()
-        trainer = Trainer(data_path, visual_logging=False, reset_model=True, num_epochs=1, batch_size=1, learning_rate=0.1, gpu=0, \
-            loss_scaled_weight=0.5, loss_unscaled_weight=0.5, only_masks=False)
+        trainer = Trainer(data_path, visual_logging=False, reset_model=True, num_epochs=1, batch_size=1, learning_rate=0.001, momentum=0.1, gpu=0, \
+            loss_scaled_weight=0.5, loss_unscaled_weight=0.5, only_masks=True)
         trainer.train()
         TestTrainer.removeDataset(images_path, data_path)
         self.assertTrue((trainer.test_loss_history[0] - trainer.test_loss_history[1]) / trainer.test_loss_history[0] > 0.01)

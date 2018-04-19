@@ -27,7 +27,7 @@ from bauta.utils.SystemUtils import SystemUtils
 
 class Trainer():
 
-    def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, gpu,\
+    def __init__(self, data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, momentum, gpu,\
         loss_scaled_weight, loss_unscaled_weight, only_masks):
         super(Trainer, self).__init__()
         self.only_masks = only_masks
@@ -49,13 +49,11 @@ class Trainer():
         self.bounding_box_extractor = BoundingBoxExtractor(constants.input_width, constants.input_height, 8)
         self.mask_detector_model = self.loadModel()
         self.objects_found_loss = nn.L1Loss()
-        self.optimizer = torch.optim.SGD([
-                    {'params': self.mask_detector_model.parameters()}
-                ], lr=self.learning_rate)
+        self.momentum = momentum
+        self.optimizer = torch.optim.SGD(self.mask_detector_model.parameters(), lr=self.learning_rate, momentum=self.momentum, nesterov=True)
         self.cuda_utils = CudaUtils()
         self.mask_detector_model, self.bounding_box_extractor, self.objects_found_loss = \
             self.cuda_utils.cudify([self.mask_detector_model, self.bounding_box_extractor, self.objects_found_loss], self.gpu)
-        self.epsilon = 1e-20
 
     def getWorkers(self):
         if self.visual_logging:
@@ -67,18 +65,15 @@ class Trainer():
         object_found, mask_scaled, mask, roi_align, bounding_boxes = network_output
         loss_objects_found = self.objects_found_loss(object_found.float(), target_objects_in_image)
         target_mask_scaled = nn.MaxPool2d(8, 8, return_indices=False)(target_mask)
-        loss_scaled = self.focalLoss(mask_scaled, target_mask_scaled)
+        self.visualLoggingOutput(network_output, target_mask_scaled)
+        loss_scaled = Trainer.focalLoss(mask_scaled, target_mask_scaled).mean()
         loss = self.loss_scaled_weight * loss_scaled
         if not self.only_masks:
             target_mask_filtered, target_bounding_boxes_filtered = RoIAlignUtils.applyRoiAlignOneToOne(roi_align, target_mask, bounding_boxes, object_found)
-            loss_unscaled = self.focalLoss(mask, target_mask_filtered)
+            loss_unscaled = Trainer.focalLoss(mask, target_mask_filtered).mean()
             loss = loss + self.loss_unscaled_weight * loss_unscaled
-            if self.visual_logging:
-                self.visualLoggingOutput(network_output, target_mask_scaled, target_mask_filtered)
             return loss, loss_scaled, loss_objects_found, loss_unscaled
         else:
-            if self.visual_logging:
-                self.visualLoggingOutput(network_output, target_mask_scaled)
             return loss, loss_scaled, loss_objects_found
 
     def testLoss(self):
@@ -127,15 +122,17 @@ class Trainer():
         self.log(mask_detector_model)
         return mask_detector_model
 
-    def focalLoss(self, mask, target_mask):
-        mask_t = torch.mul(mask, target_mask) + torch.mul(mask - 1, target_mask - 1)
-        focal_loss = -torch.mul(torch.log(mask_t + self.epsilon), (-mask_t + 1).pow(2))
-        # No need for intersection-over-union (IoU) due to:
-        #  - Focal loss has zero error on intersection (intersection is the numerator in IoU and 0/X = 0)
-        #     Note: Focal loss is zero network segments correctly, but non-zero when the segmentation is wrong.
-        #  - Focal loss is non-zero for non-overlapping masks
-        #  - Dividing by 'target_mask' makes the error scale-independant.
-        return focal_loss.sum() / (target_mask.sum() + 1.0)
+    def focalLoss(output_mask, target_mask, epsilon=1e-20):
+        mask_t = torch.mul(output_mask, target_mask) + torch.mul(output_mask - 1, target_mask - 1)
+        focal_loss = -torch.mul(torch.log(mask_t + epsilon), (-mask_t + 1).pow(2))
+        # Divide each mask by the target mask to make loss scale-independant.
+        focal_loss_batch_and_class_dimension_merged = focal_loss.view(focal_loss.size()[0] * focal_loss.size()[1], -1)
+        focal_loss_batch_and_class_dimension_merged_sum = torch.sum(focal_loss_batch_and_class_dimension_merged, dim = 1)
+        target_batch_and_class_dimension_merged = target_mask.view(target_mask.size()[0] * target_mask.size()[1], -1)
+        target_batch_and_class_dimension_merged_sum = torch.sum(target_batch_and_class_dimension_merged, dim = 1)
+        focal_loss_divided_by_mask_size = 2.0 * (focal_loss_batch_and_class_dimension_merged_sum / (target_batch_and_class_dimension_merged_sum + 1.0))
+        return focal_loss_divided_by_mask_size
+
 
     def visualLoggingDataset(self, input_images, target_mask):
         for current_index in range(input_images.size()[0]):
@@ -143,17 +140,18 @@ class Trainer():
             for current_class_index in range(target_mask[current_index].size()[0]):
                 cv2.imshow(f'Trainer -- Target Mask {current_index} for class {self.config.classes[current_class_index]}', self.image_utils.toNumpy(target_mask.data[current_index][current_class_index]))
 
-    def visualLoggingOutput(self, network_output, target_mask_scaled, target_mask_roi):
-        object_found, mask_scaled, mask, roi_align, bounding_boxes = network_output
-        current_found_index = 0
-        for current_index in range(mask_scaled.size()[0]):
-            for current_class in range(len(self.config.classes)):
-                cv2.imshow(f'Target Mask Scaled {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(target_mask_scaled.data[current_index][current_class]))
-                cv2.imshow(f'Output Mask Scaled {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask_scaled.data[current_index][current_class]))
-                if object_found[current_index][current_class].data[0] == 1:
-                    cv2.imshow(f'Output Found Mask {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_found_index]))
-                    current_found_index = current_found_index + 1
-        cv2.waitKey(0)
+    def visualLoggingOutput(self, network_output, target_mask_scaled):
+        if self.visual_logging:
+            object_found, mask_scaled, mask, roi_align, bounding_boxes = network_output
+            current_found_index = 0
+            for current_index in range(mask_scaled.size()[0]):
+                for current_class in range(len(self.config.classes)):
+                    cv2.imshow(f'Target Mask Scaled {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(target_mask_scaled.data[current_index][current_class]))
+                    cv2.imshow(f'Output Mask Scaled {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask_scaled.data[current_index][current_class]))
+                    if object_found[current_index][current_class].data[0] == 1:
+                        cv2.imshow(f'Output Found Mask {current_index} for "{self.config.classes[current_class]}".', self.image_utils.toNumpy(mask.data[current_found_index]))
+                        current_found_index = current_found_index + 1
+            cv2.waitKey(0)
 
     def logLoss(self, losses, epoch, train_dataset_index, dataset_train):
         if not self.only_masks:

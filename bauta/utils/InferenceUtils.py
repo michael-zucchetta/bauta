@@ -67,7 +67,7 @@ class InferenceUtils():
         mask_found_index = 0
         for class_index in range(object_found.size()[1]):
             if(object_found[0][class_index].data[0] == 1):
-                bounding_box = bounding_boxes[0][mask_found_index].data
+                bounding_box = bounding_boxes[0][class_index].data
                 width, height = self.toOriginalCoordinate(input_image_scaled.shape[1], input_image_scaled.shape[0], image_info.width, image_info.height, network_input_width, network_input_height, bounding_box)
                 x_min, y_min = self.toOriginalCoordinateFromNetworkInput(bounding_box[0], bounding_box[1], image_info.width, image_info.height, network_input_width, network_input_height)
                 x_max, y_max = int(x_min + width - 1), int(y_min + height - 1)
