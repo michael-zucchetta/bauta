@@ -49,7 +49,7 @@ class BasicBackgroundRemover():
         cv2.drawContours(result, [areas_and_contours[0][1]], -1, (255), -1)
         for i in range(1, len(areas_and_contours)):
             (area, contour) = areas_and_contours[i]
-            if area / areas_and_contours[0][0] > OBJECT_AREA_THRESHOLD:
+            if area / areas_and_contours[0][0] > self.object_area_threshold:
                 color = 0
             else:
                 color = 255
