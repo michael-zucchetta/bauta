@@ -37,24 +37,32 @@ class DatasetGenerator():
         datasets_with_attributes = []
         self.makeDefaultDirs()
         environment = EnvironmentUtils(self.data_path)
+        if not os.path.isdir(images_path):
+            self.logger.error(f'"{images_path}" is not an existing directory')
+            return None
         class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path)]
         if constants.background_label not in class_names:
              self.logger.error(f'The class "background" is compulsory but it was not found. Thus dataset cannot be created.', e)
              return None
+        if len(class_names) <= 1:
+            self.logger.error(f'There should be at least one class besides the "background" one (e.g. "cat" and "background").', e)
+            return None
         self.createConfigurationFile(class_names)
-        for file_in_path in os.listdir(images_path):
-            if self.system.hasExtension(os.path.join(images_path, file_in_path), ['txt']):
-                class_name = os.path.splitext(file_in_path)[0]
-                train_path = environment.objectsFolder(class_name, True)
-                test_path  = environment.objectsFolder(class_name, False)
-                images = self.readImages(os.path.join(images_path, file_in_path))
-                self.system.makeDirIfNotExists(train_path)
-                self.system.makeDirIfNotExists(test_path)
-                existing_train_images = self.system.imagesInFolder(train_path)
-                existing_test_images = self.system.imagesInFolder(test_path)
-                training_set, test_set = self.testTrainSplit(images, existing_train_images, existing_test_images, split_test_proportion)
-                datasets_with_attributes.append({'dataset': self.createGroupedDataset(training_set, download_batch_size), 'class': class_name, 'is_train': True})
-                datasets_with_attributes.append({'dataset': self.createGroupedDataset(test_set, download_batch_size), 'class': class_name, 'is_train': False})
+        image_paths = [os.path.join(images_path, file_in_path) for file_in_path in os.listdir(images_path) \
+            if self.system.hasExtension(os.path.join(images_path, file_in_path), ['txt'])]
+        for image_path in image_paths:
+            file_in_path = os.path.basename(image_path)
+            class_name = os.path.splitext(file_in_path)[0]
+            train_path = environment.objectsFolder(class_name, True)
+            test_path  = environment.objectsFolder(class_name, False)
+            images = self.readImages(image_path)
+            self.system.makeDirIfNotExists(train_path)
+            self.system.makeDirIfNotExists(test_path)
+            existing_train_images = self.system.imagesInFolder(train_path)
+            existing_test_images = self.system.imagesInFolder(test_path)
+            training_set, test_set = self.testTrainSplit(images, existing_train_images, existing_test_images, split_test_proportion)
+            datasets_with_attributes.append({'dataset': self.createGroupedDataset(training_set, download_batch_size), 'class': class_name, 'is_train': True})
+            datasets_with_attributes.append({'dataset': self.createGroupedDataset(test_set, download_batch_size), 'class': class_name, 'is_train': False})
         datasets = [dataset_with_attributes['dataset'] for dataset_with_attributes in datasets_with_attributes]
         for zipped_dataset in itertools.zip_longest(*datasets):
             for (index, batch_dataset) in enumerate(zipped_dataset):
