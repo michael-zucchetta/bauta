@@ -82,19 +82,26 @@ class BasicBackgroundRemover():
 
     def removeFlatBackgroundFromRGB(self, image, full_computation=True):
         if len(image.shape) > 2 and image.shape[2] == 4:
-            return image
-        else:
-            image_info = ImageInfo(image)
-            blurred_image = cv2.GaussianBlur(image, (5, 5), 0)
-            sobel_image = self.applySobelFilter(blurred_image)
-            contours = self.findContours(sobel_image)
-            mask = self.image_utils.blankImage(image_info.width, image_info.height)
-            _, biggest_contour = contours[0]
-            cv2.fillPoly(mask, [biggest_contour], 255)
-            if full_computation:
-                self.removeBackgroundInsideMainObject(blurred_image, contours, mask)
-            mask = cv2.erode(mask, None, iterations=4)
-            b, g, r = cv2.split(image)
-            rgba = [b, g, r, mask]
-            rgba = cv2.merge(rgba, 4)
-            return rgba
+            '''
+            if the alpha channel contains at least one pixel that is not fully white,
+            then the alpha channel is truly an alpha channel
+            '''
+            if np.any(image[:, :, 3] != 255):
+                return image
+            else:
+                (b, g, r, _) = cv2.split(image)
+                image = cv2.merge([b, g, r])
+        image_info = ImageInfo(image)
+        blurred_image = cv2.GaussianBlur(image, (5, 5), 0)
+        sobel_image = self.applySobelFilter(blurred_image)
+        contours = self.findContours(sobel_image)
+        mask = self.image_utils.blankImage(image_info.width, image_info.height)
+        _, biggest_contour = contours[0]
+        cv2.fillPoly(mask, [biggest_contour], 255)
+        if full_computation:
+            self.removeBackgroundInsideMainObject(blurred_image, contours, mask)
+        mask = cv2.erode(mask, None, iterations=4)
+        b, g, r = cv2.split(image)
+        rgba = [b, g, r, mask]
+        rgba = cv2.merge(rgba, 4)
+        return rgba
