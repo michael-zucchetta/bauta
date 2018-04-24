@@ -63,7 +63,7 @@ class BasicBackgroundRemover():
         for contour_index in range(1, len(contours)):
             (area, contour) = contours[contour_index]
             first_pixel_in_contour = contour[0][0]
-            first_pixel_in_contour = (first_pixel_in_contour[0], first_pixel_in_contour[1])
+            first_pixel_in_contour = (first_pixel_in_contour[1], first_pixel_in_contour[0])
             # if the contour is at least 50% the size of the biggest element => it iss probably another object if it is not overlapping
             if area / biggest_area > 0.5 and not background_subtracted_mask[first_pixel_in_contour] == 0:
                 cv2.fillPoly(mask, [contour], 255)
