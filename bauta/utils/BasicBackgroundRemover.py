@@ -105,7 +105,7 @@ class BasicBackgroundRemover():
         cv2.fillPoly(mask, [biggest_contour], 255)
         if full_computation and len(contours) > 1:
             self.removeBackgroundInsideMainObject(blurred_image, contours, mask)
-        mask = cv2.erode(mask, None, iterations=4)
+        mask = cv2.erode(mask, None, iterations=3)
         b, g, r = cv2.split(image)
         rgba = [b, g, r, mask]
         rgba = cv2.merge(rgba, 4)

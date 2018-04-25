@@ -5,29 +5,105 @@ import random
 
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.ImageInfo import ImageInfo
+from bauta.Constants import constants
 
 class ImageDistortions():
     def __init__(self):
         self.image_utils = ImageUtils()
 
-    def _generateRotationDistortionParameters():
-        return (-random.random() * 20) + 10
+    def _getScaleValue(self):
+        probability = random.uniform(0, 1)
+        if probability < 0.7:
+            scale = random.uniform(0.8, 1.0)
+        elif 0.8 <= probability < 0.95:
+            scale = random.uniform(0.5, 0.8)
+        else:
+            scale = random.uniform(0.1, 0.5)
+        return scale
 
-    def applyRotationDistortion(self, item_image, angle_distortion=_generateRotationDistortionParameters()):
+    def getScaleParams(self, original_width, original_height):
+        proportion_y = original_width / original_height
+        max_scale_x = constants.input_width / original_width
+        max_scale_y = constants.input_height / original_height
+        scale_x = self._getScaleValue()
+        scale_y = self._getScaleValue()
+        if scale_x > max_scale_x:
+            scale_x = scale_x * max_scale_x * proportion_y
+            scale_y = scale_y * max_scale_y
+        elif scale_y > max_scale_y:
+            scale_y = scale_y * max_scale_y / proportion_y
+            scale_x = scale_x * max_scale_x
+        return scale_x, scale_y
+    
+    def getScaleMatrix(self, scale_x, scale_y):
+        scale_matrix = [
+            [scale_x,   0,       0],
+            [0,         scale_y, 0],
+            [0,         0,       1]
+        ]
+        return np.array(scale_matrix)
+
+    def getScaledRotoTranslationMatrix(self, scale_x, scale_y, original_width, original_height):
+        angle_probability = random.uniform(0, 1)
+        if angle_probability < 0.5:
+            angle = random.uniform(-15, 15)
+        elif 0.5 <= angle_probability < 0.8:
+            angle = random.uniform(-30, 30)
+        elif 0.8 <= angle_probability < 0.95:
+            angle = random.uniform(-90, 90)
+        else:
+            angle = random.uniform(-180, 180)
+        angle_radiants = math.radians(angle)
+        cos_angle = math.cos(angle_radiants)
+        sin_angle = math.sin(angle_radiants)
+        image_width = original_height * math.fabs(sin_angle)  + original_width * math.fabs(cos_angle) 
+        image_height = original_height * math.fabs(cos_angle) + original_width * math.fabs(sin_angle)
+
+        # center the rotated image on the top left angle of the image
+        base_x_translation = ( (1 - cos_angle ) * original_width / 2 ) - ( sin_angle       * original_height / 2 ) + ( image_width / 2 - original_width / 2 )
+        base_y_translation = ( sin_angle       *  original_width / 2 ) + ( (1 - cos_angle) * original_height / 2 ) + ( image_height / 2 - original_height / 2 )
+        random_x_translation = random.uniform(-0.45 * image_width, constants.input_width / scale_x  - image_width / 2.1)
+        random_y_translation = random.uniform(-0.45 * image_height, constants.input_height / scale_y - image_height / 2.1)
+        rotation_matrix = np.array([
+	    [cos_angle,    sin_angle],
+	    [-sin_angle,   cos_angle]
+	])
+        rototranslation_matrix  = np.zeros((3, 3))
+        rototranslation_matrix[0:2,0:2] = rotation_matrix
+        rototranslation_matrix[:, 2:3] = [
+	    [base_x_translation + random_x_translation],
+	    [base_y_translation + random_y_translation],
+	    [1]
+	]
+        return rototranslation_matrix
+
+    def getPerspectiveMatrix(self):
+        perspective_probability = random.uniform(0, 1)
+        if perspective_probability < 0.7:
+            perspective_x = random.uniform(-0.00001, 0.00001)
+            perspective_y = random.uniform(-0.00001, 0.00001)
+        elif 0.7 <= perspective_probability < 0.95:
+            perspective_x = random.uniform(-0.0001, 0.0002)
+            perspective_y = random.uniform(-0.0001, 0.0002)
+        else:
+            perspective_x = random.uniform(-0.0003, 0.0005) 
+            perspective_y = random.uniform(-0.0003, 0.0005) 
+
+        perspective_matrix = [
+          [1, 			0, 		0],
+          [0,                   1, 		0],
+          [perspective_x,       perspective_y,	1]
+        ]
+        return np.matrix(perspective_matrix)
+
+    def distortImage(self, item_image):
         item_image_info = ImageInfo(item_image)
-        extra_rotation_border = math.ceil( math.sqrt(item_image_info.width ** 2 + item_image_info.height ** 2 / 4) )
-        transparent_background_width = int(item_image_info.width + extra_rotation_border)
-        transparent_background_height = int(item_image_info.height + extra_rotation_border)
-        transparent_background_for_item_image_rgb = self.image_utils.blankImage(transparent_background_width, transparent_background_height, 4)
-        # item is pasted in the center of a transparent background which is 50% bigger than itself
-        (item_image_on_bigger_tranparent_image, mask) = self.image_utils.pasteRGBAimageIntoRGBimage(item_image, transparent_background_for_item_image_rgb, int((transparent_background_width - item_image_info.width) / 2),  int((transparent_background_height - item_image_info.height) / 2))
-        item_image_on_bigger_tranparent_image[:, :, 3] = mask[:, :, 0]
-        rotation_matrix = cv2.getRotationMatrix2D( center=(int(transparent_background_width / 2), int(transparent_background_height / 2) ), angle=angle_distortion, scale=1)
-        rotated_item_image = cv2.warpAffine(item_image_on_bigger_tranparent_image, rotation_matrix, (transparent_background_width, transparent_background_height))
-        rotated_item_image = cv2.resize(rotated_item_image, (item_image_info.width,  item_image_info.height))
-        return rotated_item_image
+        (scale_x, scale_y) = self.getScaleParams(item_image_info.width, item_image_info.height)
+        scale_matrix = self.getScaleMatrix(scale_x, scale_y)
+        rototranslation_matrix = self.getScaledRotoTranslationMatrix(scale_x, scale_y, item_image_info.width, item_image_info.height) 
+        perspective_matrix = self.getPerspectiveMatrix()
+        homography_matrix = np.dot(scale_matrix, np.dot(rototranslation_matrix, perspective_matrix))
 
-    def applyTransformationsAndDistortions(self, item_image):
-        item_image = self.applyRotationDistortion(item_image)
-
-        return item_image
+        transformed_image = cv2.warpPerspective( item_image, homography_matrix, (constants.input_width, constants.input_height) )
+       
+        return transformed_image

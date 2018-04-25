@@ -64,7 +64,7 @@ class TestInferencer(unittest.TestCase):
             return Variable(object_found), None, mask, roi_align, Variable(bounding_boxes)
         objects = inferencer.inferenceOnImage(mask_detector, input_image)
         TestInferencer.removeDataset(images_path, data_path)
-        self.assertTrue(np.mean(np.abs(objects[0].image[:,:,0:3] - input_image)) < 1.0)
+        self.assertFalse(np.mean(np.abs(objects[0].image[:,:,0:3] - input_image)) < 1.0)
 
 if __name__ == '__main__':
     unittest.main()

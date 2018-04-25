@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 import cv2
 import itertools
 import numpy as np
@@ -11,13 +12,29 @@ from bauta.DatasetGenerator import DatasetGenerator
 from bauta.utils.SystemUtils import SystemUtils
 from bauta.DataAugmentationDataset import DataAugmentationDataset 
 from bauta.utils.ImageDistortions import ImageDistortions 
+import random
+
+send_image_out_of_mask_y = 1000
+rotation_angle = 20
+scale = 1.0
+random_mocked_numbers = [0, 0, 0, 0, 0, rotation_angle, 0, scale, 0, scale, 0]
 
 class TestDataAugmentationDataset(unittest.TestCase):
+    def random_uniform(lower_bound, upper_bound):
+        if len(random_mocked_numbers) == 0:
+          return lower_bound + random.random() / upper_bound
+        else:
+          return random_mocked_numbers.pop()
 
+    def random_int(lower_bound, upper_bound):
+        return 1
+
+    @mock.patch('random.uniform', random_uniform)
+    @mock.patch('random.randint', random_int)
     def testGenerateImageWithOverlappingElements(self):
         system_utils = SystemUtils()
-        images_path = f'/tmp/{random.randint(0, 100000)}'
-        data_path = f'/tmp/{random.randint(0, 100000)}'
+        images_path = f'/tmp/{random.random() * 100000}'
+        data_path = f'/tmp/{random.random() * 100000}'
         system_utils.makeDirIfNotExists(images_path)
         squares_image_path = f'{images_path}/square.txt'
         with open(f'{images_path}/square.txt','w') as file:
@@ -30,7 +47,6 @@ class TestDataAugmentationDataset(unittest.TestCase):
             file.write('./test/data/images/background/background_1.png')
         dataset_generator = DatasetGenerator(data_path)
         datasets_with_attributes = dataset_generator.generateDatasetFromListOfImages(images_path, 0.25, 5)
-
         data_augmentation_dataset = DataAugmentationDataset(True, data_path)
         class_index = 0
         base_path_img1 = os.path.join(data_path, 'dataset/augmentation/train/circle')
@@ -46,18 +62,14 @@ class TestDataAugmentationDataset(unittest.TestCase):
         
         data_augmentation_dataset.randomObject = lambda index: mocked_return_values.pop()
         dataset_index = 0
-        original_applyRotationDistortion = data_augmentation_dataset.image_distortions.applyRotationDistortion
-        def mocked_applyRotationDistortion(item_image):
-            return original_applyRotationDistortion(item_image, angle_distortion=20)
-        data_augmentation_dataset.image_distortions.applyRotationDistortion = mocked_applyRotationDistortion
         data_augmentation_dataset.generateAugmentedImage(dataset_index)
         
         mask_background_name = '0_mask_background.png'
         generated_background_mask = cv2.imread(os.path.join(data_path, 'dataset/train/', str(dataset_index), mask_background_name))
         expected_background_mask = cv2.imread(os.path.join('./test/data/images/generated/augmented_image_with_overlappings', mask_background_name))
-
         difference_of_masks = cv2.subtract(expected_background_mask, generated_background_mask)
-        self.assertTrue(np.count_nonzero(difference_of_masks > 10) < 10)
+        difference_of_masks_inverse = cv2.subtract(generated_background_mask, expected_background_mask)
+        self.assertTrue(np.count_nonzero(difference_of_masks + difference_of_masks_inverse > 10) < 10)
 
         shutil.rmtree(images_path)
         shutil.rmtree(data_path)

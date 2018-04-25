@@ -96,7 +96,7 @@ class DataAugmentationDataset(Dataset):
         target_masks[:, :, constants.background_mask_index:constants.background_mask_index + 1] = 255
         classes_in_input = {constants.background_mask_index}
         for (class_index, class_object) in class_indexes_and_objects:
-            distorted_class_object = self.image_distortions.applyTransformationsAndDistortions(class_object)
+            distorted_class_object = self.image_distortions.distortImage(class_object)
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
             original_object_areas[class_index] =  original_object_areas[class_index] + object_mask.sum()
             self.addSubMaskFromMainMask(target_masks, object_mask, class_index)
