@@ -13,12 +13,15 @@ class BasicBackgroundRemover():
     def findContours(self, filtered_image):
         _, contours, hierarchy = cv2.findContours(filtered_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         areas = [cv2.contourArea(c) for c in contours]
-        biggest_area_index = np.argmax(areas)
-        areas_and_indexes = [(area, index) for index, area in enumerate(areas) if area / areas[biggest_area_index] > self.object_area_threshold]
-        sorted_areas_and_indexes = sorted(areas_and_indexes, key=lambda area_index_tuple: area_index_tuple[0], reverse=True)
-        area_and_contours = [(area, contours[index]) for (area, index) in sorted_areas_and_indexes]
+        if len(areas) > 0:
+            biggest_area_index = np.argmax(areas)
+            areas_and_indexes = [(area, index) for index, area in enumerate(areas) if area / areas[biggest_area_index] > self.object_area_threshold]
+            sorted_areas_and_indexes = sorted(areas_and_indexes, key=lambda area_index_tuple: area_index_tuple[0], reverse=True)
+            area_and_contours = [(area, contours[index]) for (area, index) in sorted_areas_and_indexes]
 
-        return [(area, cv2.approxPolyDP(c, 3, True)) for area, c in area_and_contours]
+            return [(area, cv2.approxPolyDP(c, 3, True)) for area, c in area_and_contours]
+        else:
+            return []
 
     def applySobelFilter(self, image):
         def sobel(level):
@@ -96,9 +99,11 @@ class BasicBackgroundRemover():
         sobel_image = self.applySobelFilter(blurred_image)
         contours = self.findContours(sobel_image)
         mask = self.image_utils.blankImage(image_info.width, image_info.height)
+        if len(contours) == 0:
+            contours = [(0, np.array([[0, 0], [0, image_info.height- 1], [image_info.width- 1, 0], [image_info.width - 1, image_info.height - 1]]))]
         _, biggest_contour = contours[0]
         cv2.fillPoly(mask, [biggest_contour], 255)
-        if full_computation:
+        if full_computation and len(contours) > 1:
             self.removeBackgroundInsideMainObject(blurred_image, contours, mask)
         mask = cv2.erode(mask, None, iterations=4)
         b, g, r = cv2.split(image)
