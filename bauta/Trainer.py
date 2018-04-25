@@ -66,11 +66,12 @@ class Trainer():
         loss_objects_found = self.objects_found_loss(object_found.float(), target_objects_in_image)
         target_mask_scaled = nn.MaxPool2d(8, 8, return_indices=False)(target_mask)
         self.visualLoggingOutput(network_output, target_mask_scaled)
-        loss_scaled = Trainer.focalLoss(mask_scaled, target_mask_scaled).mean()
+        loss_scaled = Trainer.focalLoss(mask_scaled, target_mask_scaled, target_objects_in_image).mean()
         loss = self.loss_scaled_weight * loss_scaled
         if not self.only_masks:
             target_mask_filtered, target_bounding_boxes_filtered = RoIAlignUtils.applyRoiAlignOneToOne(roi_align, target_mask, bounding_boxes, object_found)
-            loss_unscaled = Trainer.focalLoss(mask, target_mask_filtered).mean()
+            all_objects_in_image = target_mask_filtered.new(target_mask_filtered.size()[0], target_mask_filtered.size()[1]).one_()
+            loss_unscaled = Trainer.focalLoss(mask, target_mask_filtered, all_objects_in_image).mean()
             loss = loss + self.loss_unscaled_weight * loss_unscaled
             return loss, loss_scaled, loss_objects_found, loss_unscaled
         else:
@@ -122,7 +123,17 @@ class Trainer():
         self.log(mask_detector_model)
         return mask_detector_model
 
-    def focalLoss(output_mask, target_mask, epsilon=1e-20):
+    def zeroMasksNotInTheImage(masks, objects_in_image):
+        return (masks.view(masks.size()[0], masks.size()[1], -1) \
+            * objects_in_image.view(objects_in_image.size()[0], \
+            objects_in_image.size()[1], -1)).view(masks.size())
+
+    def focalLoss(output_mask, target_mask, target_objects_in_image, epsilon=1e-20):
+        output_mask = Trainer.zeroMasksNotInTheImage(output_mask, target_objects_in_image)
+        target_mask = Trainer.zeroMasksNotInTheImage(target_mask, target_objects_in_image)
+        # Objects that are too small get their masks ignored. As masks are zeroed in both
+        # the target and the output and the focal loss will ignore the correct predictions,
+        # these masks will get ignored (target=ouput and when that happens focal loss ignores them)
         mask_t = torch.mul(output_mask, target_mask) + torch.mul(output_mask - 1, target_mask - 1)
         focal_loss = -torch.mul(torch.log(mask_t + epsilon), (-mask_t + 1).pow(2))
         # Divide each mask by the target mask to make loss scale-independant.

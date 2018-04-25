@@ -36,6 +36,7 @@ class DataAugmentationDataset(Dataset):
         self.image_distortions = ImageDistortions()
         self.basic_background_remover = BasicBackgroundRemover()
         self.logger = self.system_utils.getLogger(self)
+        self.maximum_area = constants.input_width * constants.input_height
 
     def __len__(self):
         return self.config.length
@@ -90,29 +91,36 @@ class DataAugmentationDataset(Dataset):
         class_indexes_and_objects = [self.system_utils.tryToRun(lambda : self.randomObject(index), validateRandomObject, constants.max_image_retrieval_attempts)
                                      for _ in range(random_number_of_objects)]
         input_image = self.system_utils.tryToRun(self.randomBackground, validateRandomObject, constants.max_image_retrieval_attempts)
-        target_mask_all_classes, objects_in_image = self.environment.blankMasksAndObjectsInImage(self.config.classes)
-        target_mask_all_classes[:, :, constants.background_mask_index:constants.background_mask_index + 1] = 255
+        target_masks, objects_in_image = self.environment.blankMasksAndObjectsInImage(self.config.classes)
+        original_object_areas = torch.zeros(len(self.config.classes))
+        target_masks[:, :, constants.background_mask_index:constants.background_mask_index + 1] = 255
         classes_in_input = {constants.background_mask_index}
         for (class_index, class_object) in class_indexes_and_objects:
             distorted_class_object = self.image_distortions.applyTransformationsAndDistortions(class_object)
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
-            self.addSubMaskFromMainMask(target_mask_all_classes, object_mask, class_index)
+            original_object_areas[class_index] =  original_object_areas[class_index] + object_mask.sum()
+            self.addSubMaskFromMainMask(target_masks, object_mask, class_index)
             # removes the current image from the existing masks that overlap it
             for current_class_in_input in classes_in_input - {class_index}:
-                self.subtractSubMaskFromMainMask(target_mask_all_classes, object_mask, current_class_in_input)
+                self.subtractSubMaskFromMainMask(target_masks, object_mask, current_class_in_input)
             classes_in_input.add(class_index)
         for current_class_in_input in classes_in_input:
-            objects_in_image[current_class_in_input] = (target_mask_all_classes[:, :, current_class_in_input:current_class_in_input + 1].sum() > 0).astype(float)
-        self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_mask_all_classes, classes_in_input, self.config.classes)
-        return input_image, target_mask_all_classes, objects_in_image
+            object_area = target_masks[:, :, current_class_in_input:current_class_in_input + 1].sum()
+            original_object_area = original_object_areas[current_class_in_input]
+            if object_area / self.maximum_area > self.config.minimum_object_area_proportion_to_be_present \
+             and original_object_area > self.config.minimum_object_area_proportion_to_be_present \
+             and object_area / original_object_area > self.config.minimum_object_area_proportion_uncovered_to_be_present:
+                objects_in_image[current_class_in_input] = 1.0
+        self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, classes_in_input, self.config.classes)
+        return input_image, target_masks, objects_in_image
 
     def __getitem__(self, index, max_attempts=10):
-        input_image, target_mask_all_classes, objects_in_image = None, None, None
+        input_image, target_masks, objects_in_image = None, None, None
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
-            input_image, target_mask_all_classes, objects_in_image = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
+            input_image, target_masks, objects_in_image = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
 
-        if input_image is None or  target_mask_all_classes is None or objects_in_image is None:
-            input_image, target_mask_all_classes, objects_in_image = self.generateAugmentedImage(index)
+        if input_image is None or  target_masks is None or objects_in_image is None:
+            input_image, target_masks, objects_in_image = self.generateAugmentedImage(index)
         input_image = transforms.ToTensor()(input_image)
-        target_mask_all_classes = transforms.ToTensor()(target_mask_all_classes)
-        return input_image, target_mask_all_classes, objects_in_image
+        target_masks = transforms.ToTensor()(target_masks)
+        return input_image, target_masks, objects_in_image

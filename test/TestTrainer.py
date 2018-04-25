@@ -46,6 +46,7 @@ class TestTrainer(unittest.TestCase):
 
 
     def test_focalLoss(self):
+        all_objects_in_image = torch.ones(1, 3)
         targets = torch.zeros(1, 3, 8, 8)
         targets[0, 0, 0:8, 0:7] = 1
         targets[0, 1, 0:8, 7:8] = 1
@@ -54,18 +55,19 @@ class TestTrainer(unittest.TestCase):
         outputs[0, 0, 0:8, 0:3] = 1 #  ~50% wrong
         outputs[0, 1, 0:8, 0:7] = 1 # ~700% wrong
         outputs[0, 2, 0:8, 0:8] = 0 # 100% correct
-        loss = Trainer.focalLoss(outputs, targets)
+        loss = Trainer.focalLoss(outputs, targets, all_objects_in_image)
         self.assertTrue(loss[0] / 50 < 1.1)
         self.assertTrue(loss[1] / 700 < 1.1)
         self.assertTrue(loss[2]  < 1e-3)
 
     def test_train_within_epoch_improves_loss(self):
         images_path, data_path = TestTrainer.createDataset()
-        trainer = Trainer(data_path, visual_logging=False, reset_model=True, num_epochs=1, batch_size=1, learning_rate=0.001, momentum=0.1, gpu=0, \
+        trainer = Trainer(data_path, visual_logging=False, reset_model=True, num_epochs=4, batch_size=1, learning_rate=0.01, momentum=0.1, gpu=0, \
             loss_scaled_weight=0.5, loss_unscaled_weight=0.5, only_masks=True)
         trainer.train()
         TestTrainer.removeDataset(images_path, data_path)
-        self.assertTrue((trainer.test_loss_history[0] - trainer.test_loss_history[1]) / trainer.test_loss_history[0] > 0.01)
+        best_test_loss = min(trainer.test_loss_history)
+        self.assertTrue((trainer.test_loss_history[0] - best_test_loss) / trainer.test_loss_history[0] > 0.01)
 
 
 if __name__ == '__main__':

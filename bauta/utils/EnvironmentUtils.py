@@ -50,43 +50,48 @@ class EnvironmentUtils():
         return index_path
 
     def blankMasksAndObjectsInImage(self, classes):
-        target_mask_all_classes = self.image_utils.blankImage(constants.input_width, constants.input_height, len(classes))
+        target_masks = self.image_utils.blankImage(constants.input_width, constants.input_height, len(classes))
         objects_in_image = torch.FloatTensor(len(classes))
         objects_in_image.zero_()
-        return target_mask_all_classes, objects_in_image
+        return target_masks, objects_in_image
 
     def _retrieveAlphaMasksAndObjects(self, alpha_mask_image_paths, classes, index_path):
-        target_mask_all_classes, objects_in_image = self.blankMasksAndObjectsInImage(classes)
+        target_masks, objects_in_image = self.blankMasksAndObjectsInImage(classes)
         for alpha_image_path in alpha_mask_image_paths:
             splitted_alpha_file_path = re.sub(f'{constants.object_ext}$', '', alpha_image_path).split(constants.dataset_mask_prefix)
             (mask_order_index, class_name) = splitted_alpha_file_path
             class_index = classes.index(class_name)
             objects_in_image[class_index] = 1
             mask_class_image = cv2.imread(os.path.join(index_path, alpha_image_path), cv2.IMREAD_UNCHANGED)
-            mask_class_image = mask_class_image.reshape(mask_class_image.shape[0], mask_class_image.shape[1], 1)
-            target_mask_all_classes[:, :, class_index : class_index + 1] = mask_class_image[:, :]
-        return target_mask_all_classes, objects_in_image
+            if mask_class_image is None:
+                return None, None
+            else:
+                mask_class_image = mask_class_image.reshape(mask_class_image.shape[0], mask_class_image.shape[1], 1)
+                target_masks[:, :, class_index : class_index + 1] = mask_class_image[:, :]
+        return target_masks, objects_in_image
 
     def getSampleWithIndex(self, index, is_train, classes):
         index_path = self.index_path(index, is_train)
         input_filename_path = self.input_filename_path(index_path)
         alpha_mask_image_paths = self.system_utils.imagesInFolder(index_path, constants.dataset_mask_prefix_regex)
         if os.path.isfile(input_filename_path) and len(alpha_mask_image_paths) >= 2:
-            input_image, target_mask_all_classes, objects_in_image = None, None, None
+            input_image, target_masks, objects_in_image = None, None, None
             if len(alpha_mask_image_paths) > 0:
                 input_image = cv2.imread(input_filename_path, cv2.IMREAD_COLOR)
-                target_mask_all_classes, objects_in_image = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
-            return input_image, target_mask_all_classes, objects_in_image
+                target_masks, objects_in_image = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
+                if target_masks is None or objects_in_image is None:
+                     return None, None, None
+            return input_image, target_masks, objects_in_image
         else:
              return None, None, None
 
-    def storeSampleWithIndex(self, index, is_train, input_image, target_mask_all_classes, masks_ordering, classes):
+    def storeSampleWithIndex(self, index, is_train, input_image, target_masks, masks_ordering, classes):
         index_path = self.index_path(index, is_train, clean_dir=True)
         input_filename_path = self.input_filename_path(index_path)
         for mask_order_index, class_index in enumerate(masks_ordering):
             class_name = classes[class_index]
             object_mask_filename = os.path.join(index_path, f'{mask_order_index}{constants.dataset_mask_prefix}{class_name}.png')
-            cv2.imwrite(object_mask_filename, target_mask_all_classes[:, :, class_index : class_index + 1], [cv2.IMWRITE_PNG_COMPRESSION, 9])
+            cv2.imwrite(object_mask_filename, target_masks[:, :, class_index : class_index + 1], [cv2.IMWRITE_PNG_COMPRESSION, 9])
         cv2.imwrite(input_filename_path, input_image, [cv2.IMWRITE_PNG_COMPRESSION, 9])
 
     def loadModel(self, name):
