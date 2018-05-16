@@ -7,6 +7,9 @@ class ImageInfo():
         self.aspect_ratio = self.width / self.height
         self.channels = image.shape[2]
 
+    def area(self):
+        return (self.width + 1) * (self.height + 1)
+
     def __hash__(self):
         return hash((self.height, self.width, self.channels))
 

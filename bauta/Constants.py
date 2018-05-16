@@ -9,16 +9,17 @@ class Constants():
     def __init__(self):
         self.input_width  = 512
         self.input_height = 512
-        self.background_mask_index = 0
         self.background_label = 'background'
         self.train_type = 'train'
         self.test_type = 'test'
         # TODO be careful when we'll allow multiple image types
         self.object_ext = '.png'
-        self.dataset_item_filename = f'input{self.object_ext}'
+        self.dataset_input_filename = f'input{self.object_ext}'
+        self.dataset_original_object_areas_filename = 'original_object_areas'
         self.dataset_mask_prefix = r'_mask_'
-        self.dataset_mask_prefix_regex = r'[0-9]+' + self.dataset_mask_prefix + '.+\.png$'
-        self.max_image_retrieval_attempts = 5
+        self.dataset_mask_prefix_regex = r'' + self.dataset_mask_prefix + '.+\.png$'
+        self.max_image_retrieval_attempts = 2
+        self.bounding_boxes_filename = 'bounding_boxes.json'        
 
     def datasetType(self, is_train):
         if is_train:

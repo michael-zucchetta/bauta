@@ -1,4 +1,5 @@
 import cv2
+import math
 
 class BoundingBox():
 
@@ -42,6 +43,10 @@ class BoundingBox():
                 bounding_boxes.append(bounding_box)
         return bounding_boxes, countour_areas
 
+    def intersectionOverUnion(self, bounding_box):
+        intersection_area = self.intersectingArea(bounding_box)
+        return intersection_area / (self.area + bounding_box.area - intersection_area)
+
     def intersect(self, bounding_box):
         intersection_left   = max(self.left, bounding_box.left)
         intersection_right  = min(self.right, bounding_box.right)
@@ -64,8 +69,9 @@ class BoundingBox():
         height_aspect_ratio = to_height / from_height
         return BoundingBox( int(self._top    * height_aspect_ratio),
                             int(self._left   * width_aspect_ratio),
-                            int(self._bottom * height_aspect_ratio),
-                            int(self._right  * width_aspect_ratio))
+                            min(to_height - 1, int(self._bottom * height_aspect_ratio) + math.ceil(height_aspect_ratio) - 1),
+                            min(to_width - 1, int(self._right  * width_aspect_ratio) + math.ceil(width_aspect_ratio) - 1)
+                            )
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):

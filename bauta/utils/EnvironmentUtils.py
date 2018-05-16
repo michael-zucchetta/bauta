@@ -5,6 +5,7 @@ import torch
 import re
 import subprocess
 import traceback
+import json
 
 from bauta.Constants import constants
 from bauta.utils.ImageUtils import ImageUtils
@@ -30,6 +31,16 @@ class EnvironmentUtils():
     def objectsFolder(self, class_name, is_train):
         return os.path.join(os.path.join(self.objects_path, constants.datasetType(is_train), class_name))
 
+    def classesInDatasetFolder(self, is_train):
+        base_path = os.path.join(self.objects_path, constants.datasetType(is_train))
+        classes = [class_directory for class_directory in os.listdir( base_path )]
+        class_paths = []
+        for class_directory in classes:
+            class_path = os.path.join(base_path, class_directory)
+            if os.path.isdir(class_path):
+               class_paths.append(class_path)
+        return list(zip(classes, class_paths))
+
     def loadModelFromPath(self, path):
         return torch.load(path, map_location=lambda storage, loc: storage)
 
@@ -37,11 +48,15 @@ class EnvironmentUtils():
         path = os.path.join(self.models_path, name)
         torch.save(mask_detector_model.float(), path)
 
-    def input_filename_path(self, index_path):
-        index_filename_path = os.path.join(index_path, constants.dataset_item_filename)
+    def inputFilenamePath(self, index_path):
+        index_filename_path = os.path.join(index_path, constants.dataset_input_filename)
         return index_filename_path
 
-    def index_path(self, index, is_train, clean_dir=False):
+    def boundingBoxesFilenamePath(self, index_path):
+        index_filename_path = os.path.join(index_path, constants.bounding_boxes_filename)
+        return index_filename_path
+
+    def indexPath(self, index, is_train, clean_dir=False):
         dataset_type = constants.datasetType(is_train)
         index_path = os.path.join(os.path.join(self.dataset_path, dataset_type), f"{index}")
         self.system_utils.makeDirIfNotExists(index_path)
@@ -49,50 +64,61 @@ class EnvironmentUtils():
             self.system_utils.removeFilesFromDir(index_path)
         return index_path
 
-    def blankMasksAndObjectsInImage(self, classes):
-        target_masks = self.image_utils.blankImage(constants.input_width, constants.input_height, len(classes))
+    def blankMasks(self, classes):
+        return self.image_utils.blankImage(constants.input_width, constants.input_height, len(classes))
+
+    def objectsInImage(self, classes):
         objects_in_image = torch.FloatTensor(len(classes))
         objects_in_image.zero_()
-        return target_masks, objects_in_image
+        return objects_in_image
 
     def _retrieveAlphaMasksAndObjects(self, alpha_mask_image_paths, classes, index_path):
-        target_masks, objects_in_image = self.blankMasksAndObjectsInImage(classes)
+        target_masks = self.blankMasks(classes)
+        objects_in_image = self.objectsInImage(classes)
         for alpha_image_path in alpha_mask_image_paths:
             splitted_alpha_file_path = re.sub(f'{constants.object_ext}$', '', alpha_image_path).split(constants.dataset_mask_prefix)
-            (mask_order_index, class_name) = splitted_alpha_file_path
+            (_, class_name) = splitted_alpha_file_path
             class_index = classes.index(class_name)
-            objects_in_image[class_index] = 1
             mask_class_image = cv2.imread(os.path.join(index_path, alpha_image_path), cv2.IMREAD_UNCHANGED)
             if mask_class_image is None:
                 return None, None
             else:
                 mask_class_image = mask_class_image.reshape(mask_class_image.shape[0], mask_class_image.shape[1], 1)
                 target_masks[:, :, class_index : class_index + 1] = mask_class_image[:, :]
-        return target_masks, objects_in_image
+        return target_masks
 
     def getSampleWithIndex(self, index, is_train, classes):
-        index_path = self.index_path(index, is_train)
-        input_filename_path = self.input_filename_path(index_path)
+        index_path = self.indexPath(index, is_train)
+        input_filename_path = self.inputFilenamePath(index_path)
         alpha_mask_image_paths = self.system_utils.imagesInFolder(index_path, constants.dataset_mask_prefix_regex)
-        if os.path.isfile(input_filename_path) and len(alpha_mask_image_paths) >= 2:
-            input_image, target_masks, objects_in_image = None, None, None
-            if len(alpha_mask_image_paths) > 0:
-                input_image = cv2.imread(input_filename_path, cv2.IMREAD_COLOR)
-                target_masks, objects_in_image = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
-                if target_masks is None or objects_in_image is None:
-                     return None, None, None
-            return input_image, target_masks, objects_in_image
+        if os.path.isfile(input_filename_path):
+            bounding_boxes = torch.load(self.boundingBoxesFilenamePath(index_path))
+            input_image, target_masks = None, None
+            input_image = cv2.imread(input_filename_path, cv2.IMREAD_COLOR)
+            target_masks = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
+            if target_masks is None:
+                return None, None, None, None
+            original_object_areas_path = self.originalObjectAreasPath(index_path)
+            original_object_areas = torch.load(original_object_areas_path)
+            return input_image, target_masks, original_object_areas, bounding_boxes
         else:
-             return None, None, None
+            return None, None, None, None
 
-    def storeSampleWithIndex(self, index, is_train, input_image, target_masks, masks_ordering, classes):
-        index_path = self.index_path(index, is_train, clean_dir=True)
-        input_filename_path = self.input_filename_path(index_path)
-        for mask_order_index, class_index in enumerate(masks_ordering):
+    def originalObjectAreasPath(self, index_path):
+        original_object_areas_path = os.path.join(index_path, constants.dataset_original_object_areas_filename)
+        return original_object_areas_path
+
+    def storeSampleWithIndex(self, index, is_train, input_image, target_masks, original_object_areas, bounding_boxes, mask_class_indexes, classes):
+        index_path = self.indexPath(index, is_train, clean_dir=True)
+        for class_index in mask_class_indexes:
             class_name = classes[class_index]
-            object_mask_filename = os.path.join(index_path, f'{mask_order_index}{constants.dataset_mask_prefix}{class_name}.png')
+            object_mask_filename = os.path.join(index_path, f'{constants.dataset_mask_prefix}{class_name}.png')
             cv2.imwrite(object_mask_filename, target_masks[:, :, class_index : class_index + 1], [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        torch.save(bounding_boxes.cpu(), self.boundingBoxesFilenamePath(index_path))
+        input_filename_path = self.inputFilenamePath(index_path)        
         cv2.imwrite(input_filename_path, input_image, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        original_object_areas_path = self.originalObjectAreasPath(index_path)
+        torch.save(original_object_areas.float(), original_object_areas_path)
 
     def loadModel(self, name):
         path = os.path.join(self.models_path, name)

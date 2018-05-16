@@ -34,7 +34,7 @@ class ImageDistortions():
             scale_y = scale_y * max_scale_y / proportion_y
             scale_x = scale_x * max_scale_x
         return scale_x, scale_y
-    
+
     def getScaleMatrix(self, scale_x, scale_y):
         scale_matrix = [
             [scale_x,   0,       0],
@@ -45,25 +45,26 @@ class ImageDistortions():
 
     def getScaledRotoTranslationMatrix(self, scale_x, scale_y, original_width, original_height):
         angle_probability = random.uniform(0, 1)
-        if angle_probability < 0.5:
+        if angle_probability < 0.80:
             angle = random.uniform(-15, 15)
-        elif 0.5 <= angle_probability < 0.8:
+        elif 0.80 <= angle_probability < 0.90:
             angle = random.uniform(-30, 30)
-        elif 0.8 <= angle_probability < 0.95:
+        elif 0.90 <= angle_probability < 0.98:
             angle = random.uniform(-90, 90)
         else:
             angle = random.uniform(-180, 180)
         angle_radiants = math.radians(angle)
         cos_angle = math.cos(angle_radiants)
         sin_angle = math.sin(angle_radiants)
-        image_width = original_height * math.fabs(sin_angle)  + original_width * math.fabs(cos_angle) 
+        image_width = original_height * math.fabs(sin_angle)  + original_width * math.fabs(cos_angle)
         image_height = original_height * math.fabs(cos_angle) + original_width * math.fabs(sin_angle)
 
         # center the rotated image on the top left angle of the image
+        percentage_out_of_image = 0.2
         base_x_translation = ( (1 - cos_angle ) * original_width / 2 ) - ( sin_angle       * original_height / 2 ) + ( image_width / 2 - original_width / 2 )
         base_y_translation = ( sin_angle       *  original_width / 2 ) + ( (1 - cos_angle) * original_height / 2 ) + ( image_height / 2 - original_height / 2 )
-        random_x_translation = random.uniform(-0.45 * image_width, constants.input_width / scale_x  - image_width / 2.1)
-        random_y_translation = random.uniform(-0.45 * image_height, constants.input_height / scale_y - image_height / 2.1)
+        random_x_translation = random.uniform(-percentage_out_of_image * image_width, constants.input_width / scale_x - ( (image_width * (1 - percentage_out_of_image))  ) )
+        random_y_translation = random.uniform(-percentage_out_of_image * image_height, constants.input_height / scale_y - ( (image_height * (1 - percentage_out_of_image)) ) )
         rotation_matrix = np.array([
 	    [cos_angle,    sin_angle],
 	    [-sin_angle,   cos_angle]
@@ -86,8 +87,8 @@ class ImageDistortions():
             perspective_x = random.uniform(-0.0001, 0.0002)
             perspective_y = random.uniform(-0.0001, 0.0002)
         else:
-            perspective_x = random.uniform(-0.0003, 0.0005) 
-            perspective_y = random.uniform(-0.0003, 0.0005) 
+            perspective_x = random.uniform(-0.0003, 0.0005)
+            perspective_y = random.uniform(-0.0003, 0.0005)
 
         perspective_matrix = [
           [1, 			0, 		0],
@@ -100,10 +101,10 @@ class ImageDistortions():
         item_image_info = ImageInfo(item_image)
         (scale_x, scale_y) = self.getScaleParams(item_image_info.width, item_image_info.height)
         scale_matrix = self.getScaleMatrix(scale_x, scale_y)
-        rototranslation_matrix = self.getScaledRotoTranslationMatrix(scale_x, scale_y, item_image_info.width, item_image_info.height) 
+        rototranslation_matrix = self.getScaledRotoTranslationMatrix(scale_x, scale_y, item_image_info.width, item_image_info.height)
         perspective_matrix = self.getPerspectiveMatrix()
         homography_matrix = np.dot(scale_matrix, np.dot(rototranslation_matrix, perspective_matrix))
 
         transformed_image = cv2.warpPerspective( item_image, homography_matrix, (constants.input_width, constants.input_height) )
-       
+
         return transformed_image

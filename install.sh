@@ -22,21 +22,21 @@ then
   echo "CUDA not detected"
   if [ "$machine" == "Mac" ];
   then
-    conda install pytorch torchvision -c pytorch
+    conda install pytorch=0.3.1 torchvision -c pytorch
   else
-    conda install pytorch-cpu torchvision -c pytorch
+    conda install pytorch-cpu=0.3.1 torchvision -c pytorch
   fi
 else
   CUDA_VERSION="$(nvcc --version --disable-warnings | grep -Po "V(\d)[.0*]*" | awk '{print substr($0,2,1)}')"
   case "$CUDA_VERSION" in
         8)
-          conda install --yes pytorch torchvision -c pytorch
+          conda install --yes pytorch=0.3.1 torchvision -c pytorch
             ;;
         9)
-          conda install --yes pytorch torchvision cuda90 -c pytorch
+          conda install --yes pytorch=0.3.1 torchvision cuda90 -c pytorch
             ;;
         *)
-          conda install --yes pytorch torchvision -c pytorch
+          conda install --yes pytorch=0.3.1 torchvision -c pytorch
   esac
 fi
 conda install --yes click
@@ -99,14 +99,6 @@ then
 else
   conda install --yes -c menpo opencv3
 fi
-#
-# INSTALL ROI ALIGN
-#
-cd ~
-git clone https://github.com/longcw/RoIAlign.pytorch
-cd RoIAlign.pytorch
-git pull
-./install.sh
 #
 # INSTALL BAUTA ITSELF
 #

@@ -57,7 +57,7 @@ class BasicBackgroundRemover():
             else:
                 color = 255
             cv2.drawContours(result, [areas_and_contours[i][1]], -1, color, -1)
-        return result 
+        return result
 
     def removeBackgroundInsideMainObject(self, original_image, contours, mask):
         original_image_info = ImageInfo(original_image)
@@ -84,7 +84,9 @@ class BasicBackgroundRemover():
                 mask[overlapping_areas == 1] = 0
 
     def removeFlatBackgroundFromRGB(self, image, full_computation=True):
-        if len(image.shape) > 2 and image.shape[2] == 4:
+        if(len(image.shape) < 3):
+            raise ValueError(f'Color channel not found in image')
+        if image.shape[2] == 4:
             '''
             if the alpha channel contains at least one pixel that is not fully white,
             then the alpha channel is truly an alpha channel

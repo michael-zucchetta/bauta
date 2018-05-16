@@ -3,6 +3,7 @@ import sys, os
 import re
 import subprocess
 import traceback
+import shutil
 
 class SystemUtils():
 
@@ -33,10 +34,14 @@ class SystemUtils():
         current_attempt = 0
         successful_run = False
         result = None
+        call_stack = traceback.format_exc()
         while not successful_run:
             try:
                 result = method()
                 successful_run = validate_result(result)
+                if not successful_run:
+                    sys.stderr.write(traceback.format_exc())
+                    raise ValueError(f'Validation did not succeed')
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
                 current_attempt += 1
@@ -44,6 +49,12 @@ class SystemUtils():
                 if(current_attempt > max_attempts):
                     raise ValueError('It is not possible run method.', e)
         return result
+
+    def rm(self, path):
+        if os.path.isfile(path) :
+            os.remove(path)
+        elif os.path.isdir(path):
+            shutil.rmtree(path)
 
     def getLogger(self, object_owner, level=logging.INFO):
         class_name = type(object_owner).__name__

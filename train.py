@@ -11,19 +11,15 @@ import os
 @click.option('--batch_size', default=16, help='Batch size.')
 @click.option('--learning_rate', default=0.0001, help='Learning rate')
 @click.option('--momentum', default=0.9, help='Momentum')
-@click.option('--only_mask', default=False, help='Only learn masks without bounding boxes. Suitable for initial training.')
 @click.option('--gpu', default=0, help='GPU index')
-def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, momentum, gpu, only_mask):
+@click.option('--test_samples', default=-1, help='Number of test samples, -1 means using all the test dataset, any positive number means using that amount of samples.')
+def train(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, momentum, gpu, test_samples):
+    if test_samples < 0:
+        test_samples = None
     if not reset_model:
         reset_model_classes = None
-    if only_mask:
-        loss_scaled_weight = 1.0
-        loss_unscaled_weight = 0.0
-    else:
-        loss_scaled_weight = 0.5
-        loss_unscaled_weight = 0.5
     trainer = Trainer(data_path, visual_logging, reset_model, num_epochs, batch_size, learning_rate, momentum, gpu, \
-        loss_scaled_weight, loss_unscaled_weight, only_mask)
+        test_samples)
     trainer.train()
 
 if __name__ == '__main__':

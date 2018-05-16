@@ -4,6 +4,8 @@ import sys
 import yaml
 import traceback
 import operator, functools
+
+from bauta.Constants import constants
 from bauta.utils.SystemUtils import SystemUtils
 
 class DatasetConfiguration():
@@ -27,19 +29,28 @@ class DatasetConfiguration():
             sys.exit("Error loading dataset")
         self.objects = {}
         self.classes = self.config['classes']
-        self.classes.insert(0, 'background')
-        for index, class_label in enumerate(self.classes):
+        for class_label in set(self.classes) | {constants.background_label}:
             class_path = os.path.join(self.objects_path, class_label)
             self.objects[class_label] = [os.path.join(class_path, image_file) for image_file in system_utils.imagesInFolder(class_path)]
+            random.shuffle(self.objects[class_label])
         self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
-        self.max_objects_per_image_sample = len(self.classes)
+        self.max_classes_per_image = 2
+        self.max_objects_per_class = 1
         self.probability_using_cache = 0.95
-        self.minimum_object_area_proportion_to_be_present = 0.1
+        self.probability_no_objects = 0.05
+        self.minimum_object_area_proportion_to_be_present = 0.05
         self.minimum_object_area_proportion_uncovered_to_be_present = 0.4
+        self.remove_corrupted_files = True
         if 'data_sampling' in self.config:
             data_sampling_config = self.config['data_sampling']
-            if 'max_objects_per_image_sample' in data_sampling_config:
-                self.max_objects_per_image_sample = data_sampling_config['max_objects_per_image_sample']
+            if 'probability_no_objects' in data_sampling_config:
+                self.probability_no_objects = data_sampling_config['probability_no_objects']
+            if 'remove_corrupted_files' in data_sampling_config:
+                self.remove_corrupted_files = data_sampling_config['remove_corrupted_files']
+            if 'max_classes_per_image' in data_sampling_config:
+                self.max_classes_per_image = max(min(len(self.classIndexesExcludingBackground()), data_sampling_config['max_classes_per_image']), 1)
+            if 'max_objects_per_class' in data_sampling_config:
+                self.max_objects_per_class = data_sampling_config['max_objects_per_class']
             if 'probability_using_cache' in data_sampling_config:
                 self.probability_using_cache = float(data_sampling_config['probability_using_cache'])
             if 'minimum_object_area_proportion_to_be_present' in data_sampling_config:
@@ -48,4 +59,4 @@ class DatasetConfiguration():
                 self.minimum_object_area_proportion_uncovered_to_be_present = float(data_sampling_config['minimum_object_area_proportion_uncovered_to_be_present'])
 
     def classIndexesExcludingBackground(self):
-        return list(range(1, len(self.classes)))
+        return list(range(0, len(self.classes)))

@@ -7,6 +7,8 @@ import cv2
 import yaml
 import traceback
 import operator, functools
+import itertools
+import json
 
 import torch
 from torch.autograd import Variable
@@ -25,7 +27,7 @@ from bauta.Constants import constants
 
 class DataAugmentationDataset(Dataset):
 
-    def __init__(self, is_train, data_path, visual_logging=False, seed=None):
+    def __init__(self, is_train, data_path, visual_logging=False, max_samples=None, seed=None):
         super(DataAugmentationDataset, self).__init__()
         random.seed(seed)
         self.environment = EnvironmentUtils(data_path)
@@ -37,9 +39,13 @@ class DataAugmentationDataset(Dataset):
         self.basic_background_remover = BasicBackgroundRemover()
         self.logger = self.system_utils.getLogger(self)
         self.maximum_area = constants.input_width * constants.input_height
+        if max_samples is None:
+            self.length = self.config.length
+        else:
+            self.length = min(self.config.length, max_samples)
 
     def __len__(self):
-        return self.config.length
+        return self.length
 
     def scale(self, image):
         return cv2.resize(image, (constants.input_width, constants.input_height))
@@ -55,10 +61,16 @@ class DataAugmentationDataset(Dataset):
 
     def randomBackground(self):
         background_index = np.random.randint(len(self.config.objects[constants.background_label]), size=1)[0] % len(self.config.objects[constants.background_label])
-        background = self.scale(cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR))
-        background = self.coverInputDimensions(background)
-        #TODO: central and/or random crop (not necessarily top-left as now)
-        return background[:, 0:constants.input_width, 0:constants.input_height]
+        background_image = cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR)
+        if background_image is not None and len(background_image.shape) == 3:
+            background = self.scale(cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR))
+            background = self.coverInputDimensions(background)
+            return background[:, 0:constants.input_width, 0:constants.input_height]
+        else:
+            if self.config.remove_corrupted_files:
+                self.logger.warning(f'Removing courrpted image {self.config.objects[constants.background_label][background_index]}')
+                self.system_utils.rm(self.config.objects[constants.background_label][background_index])
+            raise ValueError(f'Coud not load background image {self.config.objects[constants.background_label][background_index]}')
 
     def imageWithinInputDimensions(self, image):
         image_info = ImageInfo(image)
@@ -69,58 +81,141 @@ class DataAugmentationDataset(Dataset):
             image = cv2.resize(image, (int(constants.input_height * image_info.aspect_ratio), constants.input_height))
         return image
 
-    def randomObject(self, index):
-        random_class_index = random.choice(self.config.classIndexesExcludingBackground())
-        random_class = self.config.classes[random_class_index]
-        object_index = index % len(self.config.objects[random_class])
-        current_object = cv2.imread(self.config.objects[random_class][object_index], cv2.IMREAD_UNCHANGED)
-        current_object = self.basic_background_remover.removeFlatBackgroundFromRGB(current_object)
-        current_object = self.imageWithinInputDimensions(current_object)
-        return random_class_index, current_object
+    def objectInClass(self, index, class_index):
+        class_label = self.config.classes[class_index]
+        object_index = index % len(self.config.objects[class_label])
+        current_object = cv2.imread(self.config.objects[class_label][object_index], cv2.IMREAD_UNCHANGED)
+        if current_object is not None:
+            current_object = self.basic_background_remover.removeFlatBackgroundFromRGB(current_object)
+            current_object = self.imageWithinInputDimensions(current_object)
+            return current_object
+        else:
+            if self.config.remove_corrupted_files:
+                self.logger.warning(f'Removing courrpted image {self.config.objects[class_label][object_index]}')
+                self.system_utils.rm(self.config.objects[class_label][object_index])
+            raise ValueError(f'Coud not load object of class {class_label} in index {object_index}: {self.config.objects[class_label][object_index]}')
+
+    def objectsInClass(self, index, class_index, count):
+        class_indexes_and_objects = [(class_index, self.system_utils.tryToRun(lambda : self.objectInClass(index + current_object_in_class, class_index), \
+            lambda result: result is not None, \
+            constants.max_image_retrieval_attempts)) for current_object_in_class in range(count)]
+        return list(itertools.chain(*class_indexes_and_objects))
 
     def subtractSubMaskFromMainMask(self, all_masks, sub_mask, object_index):
         all_masks[:, :, object_index : object_index + 1] = cv2.subtract(all_masks[:, :, object_index : object_index + 1], sub_mask[:,:]).reshape(sub_mask.shape)
 
-    def addSubMaskFromMainMask(self, all_masks, sub_mask, object_index):
+    def addSubMaskToMainMask(self, all_masks, sub_mask, object_index):
         all_masks[:, :, object_index : object_index + 1] = cv2.add(all_masks[:, :, object_index : object_index + 1], sub_mask[:,:]).reshape(sub_mask.shape)
 
+    def getRandomClassIndexToCount(self, random_number_of_objects):
+        class_index_to_count = [0] * len(self.config.classes)
+        if random.random() > self.config.probability_no_objects:
+            if random_number_of_objects is None:
+                random_number_of_objects = random.randint(1, min(self.config.max_classes_per_image, len(self.config.classes)) * self.config.max_objects_per_class)
+            while sum(class_index_to_count) < random_number_of_objects:
+                random_class_index = random.choice(list(range(0, len(self.config.classes))))
+                if class_index_to_count[random_class_index] < self.config.max_objects_per_class:
+                    class_index_to_count[random_class_index] = class_index_to_count[random_class_index] + 1
+        return class_index_to_count
+
+    def getObjectsInImage(self, target_masks, original_object_areas):
+        objects_in_image = self.environment.objectsInImage(self.config.classes)
+        for current_class_in_input in range(target_masks.shape[2]):
+            object_area = target_masks[:, :, current_class_in_input:current_class_in_input + 1].sum() / 255
+            if object_area > 0.0:
+                original_object_area = original_object_areas[current_class_in_input] / 255
+                #print(current_class_in_input, object_area / self.maximum_area, object_area / original_object_area )
+                if object_area / self.maximum_area > self.config.minimum_object_area_proportion_to_be_present \
+                 and original_object_area > self.config.minimum_object_area_proportion_to_be_present \
+                 and object_area / original_object_area > self.config.minimum_object_area_proportion_uncovered_to_be_present:
+                    objects_in_image[current_class_in_input] = 1.0
+        return objects_in_image
+
+    def extractConnectedComponents(self, class_index, mask):
+        connected_component = None
+        image_utils = ImageUtils()
+        image_info = ImageInfo(mask) 
+        if mask.sum() > 10.00:
+            mask = (mask * 255).astype(np.uint8)
+            _, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
+            x, y, w, h = cv2.boundingRect(contours[0])
+            return torch.IntTensor([class_index, x, y, x + w, y + h])
+
     def generateAugmentedImage(self, index, random_number_of_objects=None):
-        if random_number_of_objects is None:
-            random_number_of_objects = random.randint(0, self.config.max_objects_per_image_sample)
-        validateRandomObject = lambda result:  result is not None
-        class_indexes_and_objects = [self.system_utils.tryToRun(lambda : self.randomObject(index), validateRandomObject, constants.max_image_retrieval_attempts)
-                                     for _ in range(random_number_of_objects)]
-        input_image = self.system_utils.tryToRun(self.randomBackground, validateRandomObject, constants.max_image_retrieval_attempts)
-        target_masks, objects_in_image = self.environment.blankMasksAndObjectsInImage(self.config.classes)
+        class_index_to_count = self.getRandomClassIndexToCount(random_number_of_objects)
+        class_indexes_and_objects = [self.objectsInClass(index, class_index, count) for class_index, count in enumerate(class_index_to_count) if count > 0]
+        random.shuffle(class_indexes_and_objects)
+        input_image = self.system_utils.tryToRun(self.randomBackground, \
+            lambda result: result is not None, \
+            constants.max_image_retrieval_attempts)
+        target_masks = self.environment.blankMasks(self.config.classes)
         original_object_areas = torch.zeros(len(self.config.classes))
-        target_masks[:, :, constants.background_mask_index:constants.background_mask_index + 1] = 255
-        classes_in_input = {constants.background_mask_index}
-        for (class_index, class_object) in class_indexes_and_objects:
+        bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5))
+        classes_in_input = set()
+        for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
             distorted_class_object = self.image_distortions.distortImage(class_object)
+            bounding_box = self.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
+            #print(bounding_box.size(), bounding_boxes.size())
+            bounding_boxes[object_index:object_index+1, :] = bounding_box
+            original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
-            original_object_areas[class_index] =  original_object_areas[class_index] + object_mask.sum()
-            self.addSubMaskFromMainMask(target_masks, object_mask, class_index)
+            self.addSubMaskToMainMask(target_masks, object_mask, class_index)
             # removes the current image from the existing masks that overlap it
             for current_class_in_input in classes_in_input - {class_index}:
                 self.subtractSubMaskFromMainMask(target_masks, object_mask, current_class_in_input)
             classes_in_input.add(class_index)
-        for current_class_in_input in classes_in_input:
-            object_area = target_masks[:, :, current_class_in_input:current_class_in_input + 1].sum()
-            original_object_area = original_object_areas[current_class_in_input]
-            if object_area / self.maximum_area > self.config.minimum_object_area_proportion_to_be_present \
-             and original_object_area > self.config.minimum_object_area_proportion_to_be_present \
-             and object_area / original_object_area > self.config.minimum_object_area_proportion_uncovered_to_be_present:
-                objects_in_image[current_class_in_input] = 1.0
-        self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, classes_in_input, self.config.classes)
-        return input_image, target_masks, objects_in_image
+        self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
+        objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
+        return input_image, target_masks, objects_in_image, bounding_boxes
+
+    def inputScale(image):
+        image_info = ImageInfo(image)
+        new_image = cv2.resize(image, (int((244 * image_info.height)/512), int((244 * image_info.width)/512)))
+        return new_image
+
+    def preprocessInputImage(image):
+        image = DataAugmentationDataset.inputScale(image)
+        normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        preprocess = transforms.Compose([
+                transforms.ToTensor(),
+                normalize
+            ])
+        return preprocess(image)
+
+    def preprocessMask(image):
+        image = DataAugmentationDataset.inputScale(image)
+        preprocess = transforms.Compose([
+                transforms.ToTensor()
+            ])
+        return preprocess(image)
 
     def __getitem__(self, index, max_attempts=10):
         input_image, target_masks, objects_in_image = None, None, None
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
-            input_image, target_masks, objects_in_image = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
-
-        if input_image is None or  target_masks is None or objects_in_image is None:
-            input_image, target_masks, objects_in_image = self.generateAugmentedImage(index)
-        input_image = transforms.ToTensor()(input_image)
-        target_masks = transforms.ToTensor()(target_masks)
-        return input_image, target_masks, objects_in_image
+            try:
+                input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
+                if input_image is not None and target_masks is not None and original_object_areas is not None:
+                    objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
+            except BaseException as e:
+                sys.stderr.write(traceback.format_exc())
+        if input_image is None or target_masks is None or objects_in_image is None:
+            index_path = self.environment.indexPath(index, self.config.is_train)
+            self.system_utils.rm(index_path)
+            current_attempt = 0
+            while (input_image is None or target_masks is None or objects_in_image is None) and current_attempt < max_attempts:
+                try:
+                    input_image, target_masks, objects_in_image, bounding_boxes = self.generateAugmentedImage(index)
+                except BaseException as e:
+                    sys.stderr.write(traceback.format_exc())
+                    current_attempt = current_attempt + 1
+                    index = index + 1
+            if input_image is None or target_masks is None or objects_in_image is None:
+                raise ValueError(f'There is a major problem during data sampling loading images. Please check error messages above.')
+        refiner_input_image = transforms.ToTensor()(input_image)
+        refiner_target_masks = transforms.ToTensor()(target_masks)
+        input_image = DataAugmentationDataset.preprocessInputImage(input_image)
+        target_masks = DataAugmentationDataset.preprocessMask(target_masks)
+        return refiner_input_image, refiner_target_masks, input_image, target_masks, objects_in_image, bounding_boxes
