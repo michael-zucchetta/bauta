@@ -43,6 +43,7 @@ conda install --yes click
 conda install --yes pyyaml
 conda install --yes requests
 conda install --yes coverage
+conda install --yes mock
 if [ "$machine" == "Mac" ];
 then
   #

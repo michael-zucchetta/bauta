@@ -17,7 +17,7 @@ import random
 send_image_out_of_mask_y = 1000
 rotation_angle = 20
 scale = 1.0
-random_mocked_numbers = [0, 0, 0, 0, 0, rotation_angle, 0, scale, 0, scale, 0]
+random_mocked_numbers = [0, 0, 0, 0, 0, 0, 0, 0, 0, rotation_angle, 0, scale, 0, scale, 0]
 
 class TestDataAugmentationDataset(unittest.TestCase):
     def random_uniform(lower_bound, upper_bound):
