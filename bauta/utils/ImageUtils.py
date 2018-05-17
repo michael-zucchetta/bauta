@@ -101,14 +101,15 @@ class ImageUtils():
         else:
             return np.ones_like(splits[0]) * 255
 
-    def addAlphaChannelToImage(self, image):
+    def addAlphaChannelToImage(self, image, alpha_channel=None):
         splits = cv2.split(image)
         if(len(splits) == 4):
             return image
         if(len(splits) != 3):
             raise Exception(f"Image is not RGB as it has {len(splits)} channels")
         red_channel, green_channel, blue_channel = splits
-        alpha_channel = np.ones(blue_channel.shape, dtype=blue_channel.dtype) * 255
+        if alpha_channel is None:
+            alpha_channel = np.ones(blue_channel.shape, dtype=blue_channel.dtype) * 255
         image_with_alpha_channel = cv2.merge((red_channel, green_channel, blue_channel, alpha_channel))
         return image_with_alpha_channel
 
