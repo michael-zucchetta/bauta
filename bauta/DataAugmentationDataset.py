@@ -68,9 +68,9 @@ class DataAugmentationDataset(Dataset):
             return background[:, 0:constants.input_width, 0:constants.input_height]
         else:
             if self.config.remove_corrupted_files:
-                self.logger.warning(f'Removing courrpted image {self.config.objects[constants.background_label][background_index]}')
+                self.logger.warning(f'Removing corrupted image {self.config.objects[constants.background_label][background_index]}')
                 self.system_utils.rm(self.config.objects[constants.background_label][background_index])
-            raise ValueError(f'Coud not load background image {self.config.objects[constants.background_label][background_index]}')
+            raise ValueError(f'Could not load background image {self.config.objects[constants.background_label][background_index]}')
 
     def imageWithinInputDimensions(self, image):
         image_info = ImageInfo(image)
@@ -93,7 +93,7 @@ class DataAugmentationDataset(Dataset):
             if self.config.remove_corrupted_files:
                 self.logger.warning(f'Removing courrpted image {self.config.objects[class_label][object_index]}')
                 self.system_utils.rm(self.config.objects[class_label][object_index])
-            raise ValueError(f'Coud not load object of class {class_label} in index {object_index}: {self.config.objects[class_label][object_index]}')
+            raise ValueError(f'Could not load object of class {class_label} in index {object_index}: {self.config.objects[class_label][object_index]}')
 
     def objectsInClass(self, index, class_index, count):
         class_indexes_and_objects = [(class_index, self.system_utils.tryToRun(lambda : self.objectInClass(index + current_object_in_class, class_index), \

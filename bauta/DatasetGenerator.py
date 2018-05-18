@@ -3,18 +3,20 @@ import random
 import shutil
 import hashlib
 import itertools
+import socket
 
 import urllib.request
 from urllib import parse
-
+from urllib.error import URLError
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.SystemUtils import SystemUtils
 from bauta.Constants import constants
-
+from random import shuffle
 
 class DatasetGenerator():
 
     def __init__(self, data_path):
+        socket.setdefaulttimeout(10)
         self.data_path = data_path
         self.system = SystemUtils()
         self.environment = EnvironmentUtils(self.data_path)
@@ -23,16 +25,17 @@ class DatasetGenerator():
     def createConfigurationFile(self, class_names):
         try:
             class_names_without_background = list(filter(lambda class_name: class_name != constants.background_label, class_names))
+            class_names_without_background.sort()
             configuration_file_path = os.path.join(self.data_path, "config.yaml")
-            with open(configuration_file_path, 'w') as config_yaml_file:
-                classes_as_string = [f'  - {class_name}\n' for class_name in class_names_without_background]
-                classes_yaml  = 'classes:\n'
-                config_yaml_file.write(classes_yaml)
-                [config_yaml_file.write(class_as_string) for class_as_string in classes_as_string]
-                self.logger.info('config.yaml created')
+            if not os.path.isfile(configuration_file_path):
+                with open(configuration_file_path, 'w') as config_yaml_file:
+                    classes_as_string = [f'  - {class_name}\n' for class_name in class_names_without_background]
+                    classes_yaml  = 'classes:\n'
+                    config_yaml_file.write(classes_yaml)
+                    [config_yaml_file.write(class_as_string) for class_as_string in classes_as_string]
+                    self.logger.info('config.yaml created')
         except BaseException as e:
             self.logger.error(f'Cannot open configuration file "{configuration_file_path}"', e)
-            return []
 
     def generateDatasetFromListOfImages(self, images_path, split_test_proportion, download_batch_size, download_images):
         self.makeDefaultDirs()
@@ -57,10 +60,13 @@ class DatasetGenerator():
             test_path  = self.environment.objectsFolder(class_name, is_train=False)
             self.system.makeDirIfNotExists(train_path)
             self.system.makeDirIfNotExists(test_path)
-            existing_train_images = self.system.imagesInFolder(train_path)
-            existing_test_images = self.system.imagesInFolder(test_path)
+
+            existing_train_images = self.readImages( os.path.join(train_path, f'{class_name}.txt'), True )
+            existing_test_images = self.readImages( os.path.join(test_path, f'{class_name}.txt'), True )
             images = self.readImages(image_path)
             training_set, test_set = self.testTrainSplit(images, existing_train_images, existing_test_images, split_test_proportion)
+            shuffle(training_set)
+            shuffle(test_set)
             self.writeImages(f'{train_path}/{class_name}.txt', training_set)
             self.writeImages(f'{test_path}/{class_name}.txt', test_set)
             class_names.append(class_name)
@@ -73,9 +79,8 @@ class DatasetGenerator():
         class_names = []
         for is_train in [True, False]:
             for (class_name, class_path) in self.environment.classesInDatasetFolder(is_train):
-                dataset = self.system.imagesInFolder(class_path)
                 class_file = os.path.join(class_path, f'{class_name}.txt')
-                dataset += self.readImages(class_file, True)
+                dataset = self.readImages(class_file, True)
                 datasets_with_attributes.append({'dataset': self.createGroupedDataset(dataset, download_batch_size), 'class': class_name, 'is_train': is_train})
                 class_names.append(class_name)
 
@@ -103,12 +108,15 @@ class DatasetGenerator():
 
     def readImages(self, txt_file_path, read_id=False):
         try:
-            with open(txt_file_path, 'r') as txt_file:
-                lines = txt_file.read().splitlines()
-                if read_id == False:
-                    return lines
-                else:
-                    return [line.split(',') for line in lines]
+            if not os.path.isfile(txt_file_path):
+                return []
+            else:
+                with open(txt_file_path, 'r') as txt_file:
+                    lines = txt_file.read().splitlines()
+                    if read_id == False:
+                        return lines
+                    else:
+                        return [line.split(',') for line in lines]
         except BaseException as e:
             self.logger.error(f'Cannot open and parse txt file "{txt_file_path}"', e)
             return []
@@ -124,9 +132,8 @@ class DatasetGenerator():
 
     def testTrainSplit(self, images, existing_train_images, existing_test_images, split_test_proportion):
         ids_to_images = [(hashlib.md5(bytes(image, encoding='utf-8')).hexdigest(), image) for image in images]
-        existing_image_ids = [os.path.splitext(image)[0] for image in existing_train_images + existing_test_images]
+        existing_image_ids = [os.path.splitext(image[0])[0] for image in existing_train_images + existing_test_images]
         new_ids_to_images = list(filter(lambda id_to_image: id_to_image[0] not in existing_image_ids, ids_to_images))
-        random.shuffle(new_ids_to_images)
         wanted_test_size = min( len(new_ids_to_images), \
             int( ( len(new_ids_to_images) + len(existing_test_images) + len(existing_train_images) ) * split_test_proportion ) )
         current_test_size = len(existing_test_images)
@@ -135,7 +142,7 @@ class DatasetGenerator():
             ids_to_train_images, ids_to_test_images = new_ids_to_images[test_to_add:], new_ids_to_images[:test_to_add]
         else:
             ids_to_train_images, ids_to_test_images = new_ids_to_images, []
-        return ids_to_train_images, ids_to_test_images
+        return ids_to_train_images + existing_train_images, ids_to_test_images + existing_test_images
 
     def retrieveImages(self, images, class_name, is_train):
         for (image_id, image_url) in images:
@@ -147,16 +154,21 @@ class DatasetGenerator():
             else:
                 image_extension = '.png'
             local_file_path = os.path.join(self.environment.objectsFolder(class_name, is_train), f'{image_id}{image_extension}')
+            if os.path.isfile(local_file_path):
+                continue
             self.logger.info(f'Retrieving image "{image_url}" for class "{class_name}" and saving it in "{local_file_path}"')
             def retrieveAndStoreImage():
                 if parsed_url.scheme:
-                    urllib.request.urlretrieve(image_url, local_file_path)
+                    try:
+                        urllib.request.urlretrieve(image_url, local_file_path)
+                    except URLError as e:
+                        self.logger.error(f'Error retrieving image with {image_url}')
                 else:
                     shutil.copyfile(image_url, local_file_path)
                 return local_file_path
             def validateStoredImage(file_path_destination):
                 return os.path.isfile(file_path_destination)
             try:
-                self.system.tryToRun(retrieveAndStoreImage, validateStoredImage, 5)
+                self.system.tryToRun(retrieveAndStoreImage, validateStoredImage, 2, silent=True)
             except BaseException as e:
                 self.logger.error(f'Cannot download and/or move image id "{image_id}" with URI "{image_url}"', e)

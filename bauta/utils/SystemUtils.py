@@ -30,7 +30,7 @@ class SystemUtils():
         if os.path.exists(dir_path):
             [os.remove(os.path.join(dir_path, file_to_remove)) for file_to_remove in os.listdir(dir_path)]
 
-    def tryToRun(self, method, validate_result, max_attempts=10):
+    def tryToRun(self, method, validate_result, max_attempts=10, silent=False):
         current_attempt = 0
         successful_run = False
         result = None
@@ -41,13 +41,18 @@ class SystemUtils():
                 successful_run = validate_result(result)
                 if not successful_run:
                     sys.stderr.write(traceback.format_exc())
-                    raise ValueError(f'Validation did not succeed')
+                    if not silent:
+                        raise ValueError(f'Validation did not succeed')
+                    else:
+                        break
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
                 current_attempt += 1
                 sys.stderr.write(f"Error, trying again: {e}")
-                if(current_attempt > max_attempts):
+                if(current_attempt > max_attempts) and not silent:
                     raise ValueError('It is not possible run method.', e)
+                else:
+                    break
         return result
 
     def rm(self, path):
