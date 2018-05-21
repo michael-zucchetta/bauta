@@ -69,8 +69,8 @@ class BoundingBox():
         height_aspect_ratio = to_height / from_height
         return BoundingBox( int(self._top    * height_aspect_ratio),
                             int(self._left   * width_aspect_ratio),
-                            min(to_height - 1, int(self._bottom * height_aspect_ratio) + math.ceil(height_aspect_ratio) - 1),
-                            min(to_width - 1, int(self._right  * width_aspect_ratio) + math.ceil(width_aspect_ratio) - 1)
+                            min(to_height - 1, int(math.ceil(self._bottom * height_aspect_ratio)) + math.ceil(height_aspect_ratio) - 1),
+                            min(to_width - 1, int(math.ceil(self._right  * width_aspect_ratio)) + math.ceil(width_aspect_ratio) - 1)
                             )
 
     def __eq__(self, other):

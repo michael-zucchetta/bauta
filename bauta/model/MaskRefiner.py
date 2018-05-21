@@ -16,21 +16,29 @@ class MaskRefiner(nn.Module):
 
     def __init__(self):
         super(MaskRefiner, self).__init__()
-        self.embedding_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, 5, 7, 1)
-        self.fully_connected_final = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(6, 1, 7, 1, False)
-        ModelUtils.xavier(self.fully_connected_final)
+        self.embedding_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, 7, 13, 1)
+        self.transformer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(8, 8, 13, 1)
+        self.merger = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(11, 8, 13, 1)
+        self.merger_low_level = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(64+8, 8, 13, 1)
+        self.fully_connected_1 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(8, 8, 21, 1, False)
+        self.fully_connected_2 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(8, 1, 21, 1, False)
+        ModelUtils.xavier(self.fully_connected_2)
         #logits for initial output near 0.98, useful as most of targets are foregrounds during refining
-        self.fully_connected_final.weight.data = self.fully_connected_final.weight.data.abs() * +4.0
+        self.fully_connected_2.weight.data = self.fully_connected_2.weight.data.abs() * +4.0
+
+    def transform(self, embeddings):
+        embeddings = F.upsample(embeddings, scale_factor=(2, 2), mode='bilinear')    
+        embeddings = F.relu(self.transformer(embeddings))
+        return embeddings
 
     def forward(self, input):
-        image, embeddings, mask = input
-        height_scale_factor = image.size()[2] / mask.size()[2]
-        width_scale_factor = image.size()[3] / mask.size()[3]
-        height_scale_increase = max(2, int(height_scale_factor / 2))
-        width_scale_increase = max(2, int(width_scale_factor / 2))
-        embeddings = F.relu(self.embedding_reducer(embeddings))
-        embeddings_and_mask = torch.cat([mask, embeddings], 1)
-        embeddings_and_mask = F.upsample(embeddings_and_mask, scale_factor=(height_scale_increase, width_scale_increase), mode='bilinear')
-        refined_mask = F.sigmoid(self.fully_connected_final(embeddings_and_mask))
-        refined_mask = F.upsample(refined_mask, size=(image.size()[2], image.size()[3]), mode='bilinear')
+        embeding_low_raw, image, embeddings, mask = input
+        embeddings = torch.cat([F.relu(self.embedding_reducer(embeddings)), mask], 1) # 1:32
+        embeddings = self.transform(embeddings) # 1:16
+        embeddings = self.transform(embeddings) # 1:8
+        embeding_low = F.adaptive_max_pool2d(embeding_low_raw, output_size=(embeddings.size()[2], embeddings.size()[3])) # corrected 1:8
+        embeding_low = F.relu(self.merger_low_level(torch.cat([embeding_low, embeddings], 1)))    
+        embeding_low = F.upsample(embeding_low, size=(image.size()[2], image.size()[3]), mode='bilinear') # 1:1
+        embeding_low = F.relu(self.fully_connected_1(embeding_low))
+        refined_mask = F.sigmoid(self.fully_connected_2(embeding_low))
         return refined_mask

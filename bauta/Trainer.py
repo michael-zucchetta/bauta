@@ -78,7 +78,7 @@ class Trainer():
             input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
             if self.visual_logging:
                self.visualLoggingDataset(input_images, target_mask)
-            predicted_masks, embeddings = self.model.forward(input_images)
+            predicted_masks, embeddings, embeding_low = self.model.forward(input_images)
             target_mask = nn.AvgPool2d(15)(target_mask)
             loss = self.focalLoss(predicted_masks, target_mask)
             average_current_test_loss = average_current_test_loss + loss[0].data[0]
@@ -105,10 +105,10 @@ class Trainer():
     def loadModel(self):
         model = None
         if not self.reset_model:
-            model = self.environment.loadModel(self.environment.best_model_file)
-            #model = Model(len(self.config.classes), 32, 5, 15)
-            #model.backbone = old_model.backbone
-            #model.mask_detectors = old_model.mask_detectors
+            old_model = self.environment.loadModel(self.environment.best_model_file)
+            model = Model(len(self.config.classes), 32, 5, 15)
+            model.backbone = old_model.backbone
+            model.mask_detectors = old_model.mask_detectors
         if self.reset_model or model is None:
             # incase no model is stored or in case the user wants to reset it
             model = Model(len(self.config.classes), 32, 5, 15)
@@ -174,15 +174,18 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    def trainRefiner(self, predicted_masks, target_masks, embeddings, refiner_input_images, refiner_target_masks, bounding_boxes):
+    def trainRefiner(self, embeding_low, predicted_masks, target_masks, embeddings, refiner_input_images, refiner_target_masks, bounding_boxes):
         mean_refiner_loss = 0.0
         mean_refiner_count = 0
         embeddings = Variable(embeddings.data)
         predicted_masks = Variable(predicted_masks.data)
         for batch_index in range(bounding_boxes.size()[0]):
-            refiner_input_image = refiner_input_images[batch_index:batch_index+1, :, :, :]
+            refiner_input_images_batch = refiner_input_images[batch_index:batch_index+1, :, :, :]
+            embeddings_batch = embeddings[batch_index:batch_index+1, :, :, :]
             target_masks_batch = target_masks[batch_index:batch_index+1, :, :, :]
             refiner_target_masks_batch = refiner_target_masks[batch_index:batch_index+1, :, :, :]
+            embeding_low_batch = Variable(embeding_low[batch_index:batch_index+1, :, :, :].data)
+            predicted_masks_batch = predicted_masks[batch_index:batch_index+1, :, :, :]
             for object_index in range(bounding_boxes.size()[1]):
                 bounding_box = bounding_boxes[batch_index, object_index, :]
                 if(bounding_box[1:5].sum() > 1.0):
@@ -193,13 +196,18 @@ class Trainer():
                     bottom = bounding_box[4]
                     bounding_box_object = BoundingBox(top, left, bottom, right)
                     bounding_box_object_scaled = bounding_box_object.resize(512, 512, 16, 16)
+                    bounding_box_object_embedding_low = bounding_box_object.resize(512, 512, 61, 61)
                     if bounding_box_object_scaled.area > 1:
-                        refiner_input_image_cropped = refiner_input_image[:, :,bounding_box_object.top:bounding_box_object.bottom+1,bounding_box_object.left:bounding_box_object.right+1]
-                        embeddings_cropped = embeddings[batch_index:batch_index+1, :,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
+                        # Crops
+                        embeding_low_cropped = embeding_low_batch[:, :,bounding_box_object_embedding_low.top:bounding_box_object_embedding_low.bottom+1,bounding_box_object_embedding_low.left:bounding_box_object_embedding_low.right+1]
+                        refiner_input_image_cropped = refiner_input_images_batch[:, :,bounding_box_object.top:bounding_box_object.bottom+1,bounding_box_object.left:bounding_box_object.right+1]
+                        embeddings_cropped = embeddings_batch[:, :,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
                         target_mask = target_masks_batch[:, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
                         refiner_target_mask = refiner_target_masks_batch[:, class_index:class_index+1,bounding_box_object.top:bounding_box_object.bottom+1,bounding_box_object.left:bounding_box_object.right+1]
-                        predicted_mask_cropped = predicted_masks[batch_index:batch_index+1, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
-                        predicted_refined_mask  = self.model.mask_refiner([refiner_input_image_cropped, embeddings_cropped, predicted_mask_cropped])
+                        predicted_mask_cropped = predicted_masks_batch[:, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]                        
+
+                        refiner_input_image_cropped, refiner_target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([refiner_input_image_cropped, refiner_target_mask], self.gpu))
+                        predicted_refined_mask  = self.model.mask_refiner([embeding_low_cropped, refiner_input_image_cropped, embeddings_cropped, predicted_mask_cropped])
                         self.logRefiner(refiner_input_image_cropped, target_mask, predicted_mask_cropped, predicted_refined_mask, class_index)
                         self.refiner_optimizer.zero_grad()
                         loss = self.focalLoss(predicted_refined_mask, refiner_target_mask)
@@ -227,15 +235,15 @@ class Trainer():
                                                        num_workers=self.getWorkers())
             for train_dataset_index, (refiner_input_image, refiner_target_masks, input_images, target_mask, target_objects_in_image, bounding_boxes) in enumerate(train_loader):
                 sys.stdout.flush()
-                input_images, target_mask, target_objects_in_image, refiner_target_masks = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image, refiner_target_masks], self.gpu))
+                input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
                 self.visualLoggingDataset(input_images, target_mask)
-                predicted_masks, embeddings  = self.model.forward(input_images)
+                predicted_masks, embeddings, embeding_low  = self.model.forward(input_images)
                 optimizer.zero_grad()
                 target_mask = nn.AvgPool2d(15)(target_mask)
                 loss = self.focalLoss(predicted_masks, target_mask)
                 loss.backward()
                 optimizer.step()
-                loss_refiner = self.trainRefiner(predicted_masks, target_mask, embeddings, refiner_input_image, refiner_target_masks, bounding_boxes)
+                loss_refiner = self.trainRefiner(embeding_low, predicted_masks, target_mask, embeddings, refiner_input_image, refiner_target_masks, bounding_boxes)
                 self.logLoss(loss.data[0], loss_refiner, epoch, train_dataset_index, dataset_train)
 
             self.environment.saveModel(self.model, f"{(epoch + 1)}.backup")

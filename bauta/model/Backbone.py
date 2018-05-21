@@ -30,11 +30,9 @@ class Backbone(nn.Module):
         x = self.bn1(x)
         x = F.relu(x)
         x = self.maxpool(x)
-        x = self.layer1(x)
-        embeding_low = x
-        x = self.layer2(x)
-        embeding_mid = x
-        x = self.layer3(x)        
-        embeding_low = F.adaptive_max_pool2d(embeding_low, (x.size()[2], x.size()[3]))
-        embeding_mid = F.adaptive_max_pool2d(embeding_mid, (x.size()[2], x.size()[3]))
-        return torch.cat([x, embeding_low, embeding_mid], 1)
+        embeding_low_raw = self.layer1(x)
+        embeding_mid_raw = self.layer2(embeding_low_raw)
+        embeding_high_raw = self.layer3(embeding_mid_raw)        
+        embeding_low = F.adaptive_max_pool2d(embeding_low_raw, (embeding_high_raw.size()[2], embeding_high_raw.size()[3]))
+        embeding_mid = F.adaptive_max_pool2d(embeding_mid_raw, (embeding_high_raw.size()[2], embeding_high_raw.size()[3]))
+        return torch.cat([embeding_high_raw, embeding_low, embeding_mid], 1), embeding_low_raw

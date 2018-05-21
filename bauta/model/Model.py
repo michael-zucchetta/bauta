@@ -26,6 +26,6 @@ class Model(nn.Module):
 
     def forward(self, input):
         cuda_utils = CudaUtils()
-        embeddings = self.backbone(input)
+        embeddings, embeding_low = self.backbone(input)
         masks = self.mask_detectors(embeddings)
-        return masks, embeddings
+        return masks, embeddings, embeding_low
