@@ -33,6 +33,9 @@ class DatasetConfiguration():
             class_path = os.path.join(self.objects_path, class_label)
             self.objects[class_label] = [os.path.join(class_path, image_file) for image_file in system_utils.imagesInFolder(class_path)]
             random.shuffle(self.objects[class_label])
+            if len(self.objects[class_label]) is 0:
+                sys.stderr.write(f'Not enough images for class "{class_label}".')
+                sys.exit(-1)
         self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
         self.max_classes_per_image = 2
         self.max_objects_per_class = 1

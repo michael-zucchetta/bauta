@@ -1,42 +1,51 @@
 # Bauta
-[Bauta](https://en.wikipedia.org/wiki/Carnival_of_Venice#Bauta) is a productive, generic toolset and python library to build image segmentation systems with minimal effort.
+[Bauta](https://en.wikipedia.org/wiki/Carnival_of_Venice#Bauta) is a generic toolset and python library to build image segmentation systems with minimal effort.
+
+`bauta` uses data augmentation to train a deep convolutional network to segment images. See [Foundations](#foundations) for further details.
 
 ## Requirements
-The library supports Linux (currently only Ubuntu) and Mac OS, and both CPU and GPU.
+The library supports Ubuntu Linux and Mac OS, and both CPU and GPU.
 You will have to install [anaconda](https://conda.io/miniconda.html).
 To know which anaconda you shall install you should check the default python version you have on your system by running
 ```
 python --version
 ```
-That command should be *3.6.w* version as previous versions might work, but they have not been tested. Depending on that you will have to install the correct version of anaconda.
 If you do not have an initial python install on your system then you will have to install python first.
 
+To enable `anaconda` for first time, run:
+ - Mac OS:
+```
+source  ~/.bash_profile
+```
+
+ - Ubuntu:
+```
+source  ~/.bashrc
+```
+
 ## Setup
-To install Bauta and set up the environment simply run
+To install `bauta` and set up the environment simply run
 ```
 ./install.sh
 ```
 This will create the environment `conda`.
-It is important that you have the correct environment enabled for all the time you use *bauta* as otherwise you will only get python errors.
-To activate the environment run:
-```
-conda activate bauta
-```
-or:
+
+To activate the environment run
 ```
 source activate bauta
 ```
-according to your configuration.
+
+** WATCH OUT: It is important that you have the correct environment enabled for all the time you use `bauta` as otherwise `bauta` will not function in any capacity **
 
 ### Dataset Generation Tool
-There is a script `setup_dataset.py` that allows you to create the whole dataset as well as the configuration file by using list of image paths or URLs.
+The script `setup_dataset.py` that allows creating a dataset and environment to get ready to train the segmentation network.
 
-First you will have to create a dataset and for that you will need either paths to images or URLs to them.
-The URLs/paths have to be stored in a `txt` file named after the class name (e.g. `cat.txt`, `dog.txt`, `background.txt`, ...).
+First you will have to have a list of files that contain URLs of the different objects you want to segment as well as backgrounds.
+The URLs have to be stored in a `txt` file named after the class name (e.g. `cat.txt`, `dog.txt`, `background.txt`, ...).
 Keep in mind that the file `background.txt` is compulsory.
-Furthermore, all the other images must be `png` files with alpha channel or `jpg` images with flat-color background (for example, a table in the center of the image with white background)
+Furthermore, all the object images must be `png` files with alpha channel or `jpg` images with flat-color background (for example, a cat in the center of the image with white background). Background images can be either `jpg` or `png`.
 
-In the pets example, there are three files:
+For the pets example, there would be three files:
 ```
 background.txt
 dog.txt
@@ -45,6 +54,7 @@ cat.txt
 
 Once you have the txt files in a single folder you have to run
 ```
+source activate bauta
 ./setup_dataset --images_path=/home/MY_USER/pets_images --data_path=/home/MY_USER/pets
 ```
 
@@ -52,7 +62,7 @@ Once you have the txt files in a single folder you have to run
  - `data_path` shall point to a folder where the split will be stored and its images downloaded downloaded.
 
 
-The `data_pat` will contain several subfolders where the dataset, models and test and train images are stored.
+The `data_path` will contain several subfolders where the dataset, models and test and train images are stored.
 
 Each directory in the train and test dataset will contain a file with the list of images URLs. If not specified otherwise, it will download the images as well.
 The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` and contains a single attribute with the lists of classes.
@@ -75,26 +85,30 @@ DATA_FOLDER/dataset/augmentation/train/dog
 ```
 
 ## Training
-To start the first training run (changing the *DATA_FOLDER* for the actual full path of your `data_path`).
+To start the first training run:
 ```
+source activate bauta
 python train.py --data_path=/home/MY_USER/pets --batch_size=32
 ```
 
 For a complete list of available parameters run:
 ```
+source activate bauta
 python train.py --help
 ```
 
 ## Inference
 Inference can be done either for one single image or a set of images on a folder.
 ```
-python inference.py --data_path=/home/MY_USER/pets --path=/home/MY_USER/Downloads/garden.jpg --result_folder/home/MY_USER/pets_in_garden
+source activate bauta
+python inference.py --data_path=/home/MY_USER/pets --path=/home/MY_USER/Downloads/garden.jpg --result_folder=/home/MY_USER/pets_in_garden
 ```
 
 The `data_path` should point as usual to the data_path of the model and the configuration file that will be used. The `path` is either the path of an image or the path of a folder that contains images. The `result_folder` is the folder were the inference results are stored, creating one folder per image with the different objects found.
 
 For a complete list of available parameters run:
 ```
+source activate bauta
 python inference.py --help
 ```
 
@@ -125,16 +139,16 @@ Inside the test and training directory lies a list of directories equivalent to 
 There is a compulsory class called `background` representing the background.
 All the other classes are expected to be `png`s with an alpha channel or a `jpg` with flat background color.
 
-# Foundations
+## Foundations
 
-Bauta is based on a Deep Neural network that implements a mixture of state-of-the-art research for image segmentation:
+`Bauta` is based on a Deep Neural network that implements a mixture of state-of-the-art research for image segmentation together with custom modifications:
 * Fisher Yu, Vladlen Koltun (2016). [Multi-Scale Context aggregation by dilated convolutions](https://arxiv.org/pdf/1511.07122.pdf).
 
 * Lin, Tsung-Yi & Goyal, Priya & Girshick, Ross & He, Kaiming & Dollár, Piotr. (2017). [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002)
 
 * He, Kaiming & Zhang, Xiangyu & Ren, Shaoqing & Sun, Jian. (2015). [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) and the Facebook implementation [ResNet training in Torch](https://github.com/facebook/fb.resnet.torch)
 
-These papers have served as a base for Bauta but with the following important differences:
+These papers have served as a base for `bauta` but with the following important differences:
  - Instead of upsampling embeddings in the backbone, the
 embeddings are downsampled to the smallest spatial dimensions of the embeddings.
  - The bounding box regression is substituted by a down-scaled mask.

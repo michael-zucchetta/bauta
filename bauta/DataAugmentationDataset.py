@@ -124,7 +124,6 @@ class DataAugmentationDataset(Dataset):
             object_area = target_masks[:, :, current_class_in_input:current_class_in_input + 1].sum() / 255
             if object_area > 0.0:
                 original_object_area = original_object_areas[current_class_in_input] / 255
-                #print(current_class_in_input, object_area / self.maximum_area, object_area / original_object_area )
                 if object_area / self.maximum_area > self.config.minimum_object_area_proportion_to_be_present \
                  and original_object_area > self.config.minimum_object_area_proportion_to_be_present \
                  and object_area / original_object_area > self.config.minimum_object_area_proportion_uncovered_to_be_present:
@@ -134,7 +133,7 @@ class DataAugmentationDataset(Dataset):
     def extractConnectedComponents(self, class_index, mask):
         connected_component = None
         image_utils = ImageUtils()
-        image_info = ImageInfo(mask) 
+        image_info = ImageInfo(mask)
         if mask.sum() > 10.00:
             mask = (mask * 255).astype(np.uint8)
             _, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
@@ -150,12 +149,11 @@ class DataAugmentationDataset(Dataset):
             constants.max_image_retrieval_attempts)
         target_masks = self.environment.blankMasks(self.config.classes)
         original_object_areas = torch.zeros(len(self.config.classes))
-        bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5))
+        bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5)).int()
         classes_in_input = set()
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
             distorted_class_object = self.image_distortions.distortImage(class_object)
             bounding_box = self.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
-            #print(bounding_box.size(), bounding_boxes.size())
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
@@ -192,8 +190,17 @@ class DataAugmentationDataset(Dataset):
             ])
         return preprocess(image)
 
+    def isDataSampleConsistentWithDatasetConfiguration(self, input_image, target_masks, bounding_boxes):
+        if input_image is not None and target_masks is not None and bounding_boxes is not None:
+            if target_masks.shape[2] is len(self.config.classes):
+                is_consistent = True
+                for bounding_box_index in range(bounding_boxes.size()[0]):
+                    is_consistent = is_consistent and bounding_boxes[bounding_box_index][0] < len(self.config.classes)
+                return is_consistent
+        return False
+
     def __getitem__(self, index, max_attempts=10):
-        input_image, target_masks, objects_in_image = None, None, None
+        (input_image, target_masks, objects_in_image, bounding_boxes) = None, None, None, None
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
                 input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
@@ -201,11 +208,11 @@ class DataAugmentationDataset(Dataset):
                     objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
-        if input_image is None or target_masks is None or objects_in_image is None:
+        if not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes):
             index_path = self.environment.indexPath(index, self.config.is_train)
             self.system_utils.rm(index_path)
             current_attempt = 0
-            while (input_image is None or target_masks is None or objects_in_image is None) and current_attempt < max_attempts:
+            while (not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes)) and current_attempt < max_attempts:
                 try:
                     input_image, target_masks, objects_in_image, bounding_boxes = self.generateAugmentedImage(index)
                 except BaseException as e:

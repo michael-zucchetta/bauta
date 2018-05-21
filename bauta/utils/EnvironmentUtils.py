@@ -78,13 +78,16 @@ class EnvironmentUtils():
         for alpha_image_path in alpha_mask_image_paths:
             splitted_alpha_file_path = re.sub(f'{constants.object_ext}$', '', alpha_image_path).split(constants.dataset_mask_prefix)
             (_, class_name) = splitted_alpha_file_path
-            class_index = classes.index(class_name)
-            mask_class_image = cv2.imread(os.path.join(index_path, alpha_image_path), cv2.IMREAD_UNCHANGED)
-            if mask_class_image is None:
-                return None, None
+            if class_name in classes:
+                class_index = classes.index(class_name)
+                mask_class_image = cv2.imread(os.path.join(index_path, alpha_image_path), cv2.IMREAD_UNCHANGED)
+                if mask_class_image is None:
+                    return None
+                else:
+                    mask_class_image = mask_class_image.reshape(mask_class_image.shape[0], mask_class_image.shape[1], 1)
+                    target_masks[:, :, class_index : class_index + 1] = mask_class_image[:, :]
             else:
-                mask_class_image = mask_class_image.reshape(mask_class_image.shape[0], mask_class_image.shape[1], 1)
-                target_masks[:, :, class_index : class_index + 1] = mask_class_image[:, :]
+                return None    
         return target_masks
 
     def getSampleWithIndex(self, index, is_train, classes):
