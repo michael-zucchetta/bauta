@@ -19,27 +19,6 @@ from bauta.InferenceResult import InferenceResult
 
 class InferenceUtils():
 
-    def inIntersectionOverUnion(connected_components_predicted, connected_components_target):
-        connected_components = {}
-        batch_indexes = set(connected_components_predicted.keys()).intersection(set(connected_components_target.keys()))
-        for batch_index in batch_indexes:
-            classes = set(connected_components_predicted[batch_index].keys()).intersection(set(connected_components_target[batch_index].keys()))
-            for class_index in classes:
-                predicted_connected_components = connected_components_predicted[batch_index][class_index]
-                target_connected_components = connected_components_target[batch_index][class_index]
-                # compare one to one and find the ones that share IoU > 0.5
-                for predicted_connected_component in predicted_connected_components:
-                    for target_connected_component in target_connected_components:
-                        intersection_over_union = predicted_connected_component['bounding_box'].\
-                            intersectionOverUnion(target_connected_component['bounding_box'])
-                        if intersection_over_union > 0.7:
-                            if not batch_index in connected_components:
-                                connected_components[batch_index] = {}
-                            if not class_index in connected_components[batch_index]:
-                                connected_components[batch_index][class_index] = []
-                            connected_components[batch_index][class_index].append(predicted_connected_component)
-        return connected_components
-
     def cropRefinerDataset(connected_components_inside_IoU, embeddings, refiner_target_masks, refiner_input_image):
         image_utils = ImageUtils()
         connected_components = {}
@@ -77,7 +56,7 @@ class InferenceUtils():
             bounding_boxes, countour_areas = BoundingBox.fromOpenCVConnectedComponentsImage(mask, 25, 256)
             return bounding_boxes
         return []
-                        
+
     def extractConnectedComponents(masks):
         connected_components = {}
         image_utils = ImageUtils()
@@ -91,7 +70,7 @@ class InferenceUtils():
                 mask = masks[batch_index][class_index]
                 mask = image_utils.toNumpy(mask.data)
                 maximum = mask.max()
-                if maximum > 0.60:                    
+                if maximum > 0.60:
                     mask = (mask * 255) / maximum
                     mask = mask.astype(np.uint8)
                     bounding_boxes = InferenceUtils.extractConnectedComponentsInMask(mask)

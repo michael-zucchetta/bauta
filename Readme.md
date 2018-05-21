@@ -1,38 +1,23 @@
 # Bauta
-[Bauta](https://en.wikipedia.org/wiki/Carnival_of_Venice#Bauta) is an easy-to-use toolset and python library to build image segmentation
-systems. Its main aim is productivity and end-to-end capabilities.
-
-Bauta is based on a Deep Neural network that implements state-of-the-art research
-for image segmentation using *data augmentation*.
-
-(TODO: List research papers)
-
-* Lin, Tsung-Yi & Goyal, Priya & Girshick, Ross & He, Kaiming & Dollár, Piotr. (2017). [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002)
-
-* He, Kaiming & Zhang, Xiangyu & Ren, Shaoqing & Sun, Jian. (2015). [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) and the Facebook implementation [ResNet training in Torch](https://github.com/facebook/fb.resnet.torch)
-
+[Bauta](https://en.wikipedia.org/wiki/Carnival_of_Venice#Bauta) is a productive, generic toolset and python library to build image segmentation systems with minimal effort.
 
 ## Requirements
-The library supports Linux (we used Ubuntu) and Mac OS, and both CPU and GPU.
+The library supports Linux (currently only Ubuntu) and Mac OS, and both CPU and GPU.
 You will have to install [anaconda](https://conda.io/miniconda.html).
-To know which anaconda you shall install you should check the default
-python version you have on your system by running
+To know which anaconda you shall install you should check the default python version you have on your system by running
 ```
 python --version
 ```
-That command should be *3.6.w* version as previous versions might work, but they have not
-been tested. Depending on that you will have to install the correct version of anaconda.
-If you do not have an initial python install on your system then you will
-have to install python first.
+That command should be *3.6.w* version as previous versions might work, but they have not been tested. Depending on that you will have to install the correct version of anaconda.
+If you do not have an initial python install on your system then you will have to install python first.
 
 ## Setup
-To install bauta and set up the environment simply run
+To install Bauta and set up the environment simply run
 ```
 ./install.sh
 ```
 This will create the environment `conda`.
-It is important that you have the correct environment enabled for all the time you use
-*bauta* as otherwise you will only get python errors.
+It is important that you have the correct environment enabled for all the time you use *bauta* as otherwise you will only get python errors.
 To activate the environment run:
 ```
 conda activate bauta
@@ -43,46 +28,13 @@ source activate bauta
 ```
 according to your configuration.
 
-## Dataset
-The dataset is composed of two types of images:
-- **Objects**: these are png images with transparent background of the different
-classes you support. In case of a dataset of pets, you will have to provide
-images for dogs and cats with transparent backgrounds
-- **Backgrounds**: just images of backgrounds you expect to have the objects on.
-In the case of a dataset of pets that would be photos of the street and photos of a backyard.
-
-
-The dataset is stored in the parameter called `data_path`, where the models and the
-images composing the dataset are stored.
-The images should be stored in the following folders:
-```
-DATA_FOLDER/dataset/augmentation/test/<CLASS_NAME>
-DATA_FOLDER/dataset/augmentation/train/<CLASS_NAME>
-```
-
-The dataset folder contains the directories:
-
-* augmentation: the path where the test and training images are being put.
-Inside the test and training directory lies a list of directories equivalent
-to the list of supported classes with the images themselves and a file which
-contains the list of URLs along their ids
-
-* Two directories, train and set, belonging to each of the sets containing
-the list of augmented images belonging to that set
-
-There is a compulsory class called `background` representing the background.
-All the other classes are expected to be `png`s with an alpha channel.
-
-
 ### Dataset Generation Tool
-There is a script `setup_dataset.py` that allows you to create the whole
-dataset as well as the configuration file by using list of image paths or URLs.
+There is a script `setup_dataset.py` that allows you to create the whole dataset as well as the configuration file by using list of image paths or URLs.
 
-First you will have to create a dataset and for that you will need either
-paths to images or URLs to them.
+First you will have to create a dataset and for that you will need either paths to images or URLs to them.
 The URLs/paths have to be stored in a `txt` file named after the class name (e.g. `cat.txt`, `dog.txt`, `background.txt`, ...).
 Keep in mind that the file `background.txt` is compulsory.
-Furthermore, all the other images must be `png` files with alpha channel.
+Furthermore, all the other images must be `png` files with alpha channel or `jpg` images with flat-color background (for example, a table in the center of the image with white background)
 
 In the pets example, there are three files:
 ```
@@ -93,24 +45,26 @@ cat.txt
 
 Once you have the txt files in a single folder you have to run
 ```
-./setup_dataset
+./setup_dataset --images_path=/home/MY_USER/pets_images --data_path=/home/MY_USER/pets
 ```
 
-This script creates the main directory in the specified **data path** with several subfolders where the dataset and models are stored and split into test and train.
-Each directory in the train and test dataset will contain a file with the list of images URLs. If not specified otherwise, it will download the images as well.
-The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` and contains a single attribute with the
-lists of classes.
+ - `images_paths` shall point to the folder containing all the `txt` files holding the URLs to the images.
+ - `data_path` shall point to a folder where the split will be stored and its images downloaded downloaded.
 
-For example, say that we have a dataset of pets supporting the class `dog`
-and `cat`. This means that the `config.yaml` will be the following:
+
+The `data_pat` will contain several subfolders where the dataset, models and test and train images are stored.
+
+Each directory in the train and test dataset will contain a file with the list of images URLs. If not specified otherwise, it will download the images as well.
+The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` and contains a single attribute with the lists of classes.
+
+For example, say that we have a dataset of pets supporting the class `dog` and `cat`. This means that the `config.yaml` will be the following:
 ```
 classes:
   - cat
   - dog
 ```
 
-The script will also create the following folders and will fill them
-with the train and test split.
+The script will also create the following folders and will fill them with the train and test split.
 ```
 DATA_FOLDER/dataset/augmentation/test/background
 DATA_FOLDER/dataset/augmentation/train/background
@@ -120,34 +74,70 @@ DATA_FOLDER/dataset/augmentation/test/dog
 DATA_FOLDER/dataset/augmentation/train/dog
 ```
 
-### Optional questions for generating the dataset
-During the script execution, a few questions will be asked:
-
-* The Base path where all the data will be stored
-
-* The path with the txt files containing the list of image URLs or paths (optional).
-
-* A parameter can be specified to download the images, so that only the splitted images as a list
-are put in a file
-
 ## Training
-To start the first training run (changing the *DATA_FOLDER* for the actual
-  full path of your dataset).
+To start the first training run (changing the *DATA_FOLDER* for the actual full path of your `data_path`).
 ```
-python train.py --data_path=DATA_FOLDER --reset_model=y --batch_size=4
-```
-
-For next time you try to train, you will have to reuse the model and thus:
-```
-python train.py --data_path=DATA_FOLDER --batch_size=4
+python train.py --data_path=/home/MY_USER/pets --batch_size=32
 ```
 
-Other optional parameters are:
+For a complete list of available parameters run:
+```
+python train.py --help
+```
 
-* `learning_rate`: the learning rate for the bauta network
+## Inference
+Inference can be done either for one single image or a set of images on a folder.
+```
+python inference.py --data_path=/home/MY_USER/pets --path=/home/MY_USER/Downloads/garden.jpg --result_folder/home/MY_USER/pets_in_garden
+```
 
-* `momentum`: the momentum of the Stochastic Gradient Descent
+The `data_path` should point as usual to the data_path of the model and the configuration file that will be used. The `path` is either the path of an image or the path of a folder that contains images. The `result_folder` is the folder were the inference results are stored, creating one folder per image with the different objects found.
 
-* `gpu`: which gpu you prefer to use
+For a complete list of available parameters run:
+```
+python inference.py --help
+```
 
-* `visual_logging`: provides the visual representation of what is going on during the training (eg. check the masks at some stage)
+## Dataset
+This section only discusses how the dataset is organized and the type and purpose of the different images required for training. If you want to directly generate the dataset see [Dataset Generation Tool](#dataset-generation-tool)
+
+The dataset is composed of two types of images:
+- **Objects**: these are `png` images with transparent background (with alpha channel) of the different classes you support. We also support both `png` without alpha channel and `jpg` images with flat color backgrounds and the object. For the latter case, Bauta will automatically remove the background as 'best effort'.
+
+In case of a dataset of pets, you will have to provide images for dogs and cats. These images will have to either contain alpha channel in the background or a flat color as background.
+
+- **Backgrounds**: just images of backgrounds you expect to have the objects on.
+In the case of a dataset of pets that would be photos of the street and photos of a backyard.
+
+All the binary files are stored in what we call `data_path`, where the models, dataset, and the images composing the dataset are stored.
+The images should be stored in the following folders:
+```
+DATA_FOLDER/dataset/augmentation/test/<CLASS_NAME>
+DATA_FOLDER/dataset/augmentation/train/<CLASS_NAME>
+```
+The dataset folder contains the directories:
+
+* *augmentation*: the path where the test and training images are located.
+Inside the test and training directory lies a list of directories equivalent to the list of supported classes with the images themselves and a file which contains the list of URLs along their ids
+
+* Two directories, *train* and *test*, each containing the its list of augmented images.
+
+There is a compulsory class called `background` representing the background.
+All the other classes are expected to be `png`s with an alpha channel or a `jpg` with flat background color.
+
+# Foundations
+
+Bauta is based on a Deep Neural network that implements a mixture of state-of-the-art research for image segmentation:
+* Fisher Yu, Vladlen Koltun (2016). [Multi-Scale Context aggregation by dilated convolutions](https://arxiv.org/pdf/1511.07122.pdf).
+
+* Lin, Tsung-Yi & Goyal, Priya & Girshick, Ross & He, Kaiming & Dollár, Piotr. (2017). [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002)
+
+* He, Kaiming & Zhang, Xiangyu & Ren, Shaoqing & Sun, Jian. (2015). [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) and the Facebook implementation [ResNet training in Torch](https://github.com/facebook/fb.resnet.torch)
+
+These papers have served as a base for Bauta but with the following important differences:
+ - Instead of upsampling embeddings in the backbone, the
+embeddings are downsampled to the smallest spatial dimensions of the embeddings.
+ - The bounding box regression is substituted by a down-scaled mask.
+   - Additionally the anchors are swapped by dilated convolutions, serving a similar purpose without requiring high amounts of memory as they work on downscaled spatial dimensions.
+ - The object classifier is removed and it is assumed that if in the downscaled mask there is no activation then the object does not exists on the image (otherwise, it does exist and it is located on the activations).
+ - There is a final refiner that is class-independent and smoothes the downsampled mask into an upsampled mask. As it only locally refines masks, there are no dilated convolutions and thus it is memory usage is low.
