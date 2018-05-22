@@ -61,11 +61,11 @@ class Inferencer():
         for batch_index in refiner_dataset.keys():
             for class_index in refiner_dataset[batch_index].keys():
                 for connected_component in refiner_dataset[batch_index][class_index]:
-                    input_image, predicted_mask, embeddings= \
-                        self.cuda_utils.cudify([connected_component['input_image'], connected_component['predicted_mask'], connected_component['embeddings']], self.gpu)
+                    low_level_embeddings, input_image, predicted_mask, embeddings= \
+                        self.cuda_utils.cudify([connected_component['low_level_embeddings'], connected_component['input_image'], connected_component['predicted_mask'], connected_component['embeddings']], self.gpu)
                     #cv2.imshow(f'Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_mask.squeeze().data))
                     #cv2.waitKey(0)
-                    predicted_refined_mask  = model.mask_refiner([input_image, embeddings, predicted_mask])
+                    predicted_refined_mask  = model.mask_refiner([low_level_embeddings, input_image, embeddings, predicted_mask])
                     #cv2.imshow(f'Refined Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask.squeeze().data))
                     #cv2.waitKey(0)
                     inference_result = InferenceResult(\
@@ -81,10 +81,10 @@ class Inferencer():
         input_image_preprocessed = Variable(DataAugmentationDataset.preprocessInputImage(input_image))
         input_image_preprocessed = self.cuda_utils.cudify([input_image_preprocessed.unsqueeze(0)], self.gpu)[0]
         print(input_image_preprocessed.size())
-        predicted_masks, embeddings  = model.forward(input_image_preprocessed)
+        predicted_masks, embeddings, low_level_embeddings  = model.forward(input_image_preprocessed)
         connected_components_predicted = InferenceUtils.extractConnectedComponents(predicted_masks)
         refiner_dataset = \
-            InferenceUtils.cropRefinerDataset(connected_components_predicted, embeddings, None, transforms.ToTensor()(input_image).unsqueeze(0))
+            InferenceUtils.cropRefinerDataset(connected_components_predicted, embeddings, None, low_level_embeddings, transforms.ToTensor()(input_image).unsqueeze(0))
         inference_results = self.refine(refiner_dataset, model)
         objects = self.extractObjects(inference_results)
         return objects

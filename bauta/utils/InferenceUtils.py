@@ -19,7 +19,7 @@ from bauta.InferenceResult import InferenceResult
 
 class InferenceUtils():
 
-    def cropRefinerDataset(connected_components_inside_IoU, embeddings, refiner_target_masks, refiner_input_image):
+    def cropRefinerDataset(connected_components_inside_IoU, embeddings, refiner_target_masks, low_level_embeddings, refiner_input_image):
         image_utils = ImageUtils()
         connected_components = {}
         for batch_index in connected_components_inside_IoU.keys():
@@ -30,6 +30,8 @@ class InferenceUtils():
                     cropped_embeddings = Variable(embeddings[batch_index:batch_index+1,:,bounding_box.top:bounding_box.bottom+1,bounding_box.left:bounding_box.right+1].data)
                     bounding_box_scaled = bounding_box.resize(embeddings.size()[3], embeddings.size()[2], refiner_input_image.size()[3], refiner_input_image.size()[2])
                     croped_input_image = Variable(refiner_input_image[batch_index:batch_index+1,:,bounding_box_scaled.top:bounding_box_scaled.bottom+1,bounding_box_scaled.left:bounding_box_scaled.right+1])
+                    bounding_box_embed_scaled = bounding_box.resize(embeddings.size()[3], embeddings.size()[2], low_level_embeddings.size()[3], low_level_embeddings.size()[2])
+                    croped_low_level_embeddings = low_level_embeddings[batch_index:batch_index+1,:,bounding_box_embed_scaled.top:bounding_box_embed_scaled.bottom+1,bounding_box_embed_scaled.left:bounding_box_embed_scaled.right+1]
                     if refiner_target_masks is not None:
                         cropped_refiner_target_masks = refiner_target_masks[batch_index:batch_index+1,class_index:class_index+1,bounding_box_scaled.top:bounding_box_scaled.bottom+1,bounding_box_scaled.left:bounding_box_scaled.right+1]
                         cropped_refiner_target_masks = Variable(cropped_refiner_target_masks)
@@ -45,6 +47,7 @@ class InferenceUtils():
                     #cv2.waitKey(0)
                     object = { 'predicted_mask': mask,
                         'input_image': croped_input_image,
+                        'low_level_embeddings': croped_low_level_embeddings,
                         'target_mask': cropped_refiner_target_masks,
                         'embeddings': cropped_embeddings,
                         'bounding_box_scaled': bounding_box_scaled }

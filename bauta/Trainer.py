@@ -105,10 +105,10 @@ class Trainer():
     def loadModel(self):
         model = None
         if not self.reset_model:
-            old_model = self.environment.loadModel(self.environment.best_model_file)
-            model = Model(len(self.config.classes), 32, 5, 15)
-            model.backbone = old_model.backbone
-            model.mask_detectors = old_model.mask_detectors
+            model = self.environment.loadModel(self.environment.best_model_file)
+            #model = Model(len(self.config.classes), 32, 5, 15)
+            #model.backbone = old_model.backbone
+            #model.mask_detectors = old_model.mask_detectors
         if self.reset_model or model is None:
             # incase no model is stored or in case the user wants to reset it
             model = Model(len(self.config.classes), 32, 5, 15)
