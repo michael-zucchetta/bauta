@@ -16,29 +16,32 @@ class MaskRefiner(nn.Module):
 
     def __init__(self):
         super(MaskRefiner, self).__init__()
-        self.embedding_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, 7, 13, 1)
-        self.transformer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(8, 8, 13, 1)
-        self.merger = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(11, 8, 13, 1)
-        self.merger_low_level = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(64+8, 8, 13, 1)
-        self.fully_connected_1 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(8, 8, 21, 1, False)
-        self.fully_connected_2 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(8, 1, 21, 1, False)
-        ModelUtils.xavier(self.fully_connected_2)
-        #logits for initial output near 0.98, useful as most of targets are foregrounds during refining
-        self.fully_connected_2.weight.data = self.fully_connected_2.weight.data.abs() * +4.0
+        self.convolutional_16_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(46, 15, 13, 1)
+        self.convolutional_16_merger = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(16, 16, 13, 1)
 
-    def transform(self, embeddings):
-        embeddings = F.upsample(embeddings, scale_factor=(2, 2), mode='bilinear')    
-        embeddings = F.relu(self.transformer(embeddings))
-        return embeddings
+        self.convolutional_8 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(24, 16, 13, 1)
+        self.convolutional_4 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(20, 16, 13, 1)
+        self.convolutional_2 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(18, 16, 13, 1)
+        self.convolutional_1 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(16, 1, 13, 1, False)
+        ModelUtils.xavier(self.convolutional_1)
+        #logits for initial output near 0.98, useful as most of targets are foregrounds during refining
+        self.convolutional_1.weight.data = self.convolutional_1.weight.data.abs() * +4.0
 
     def forward(self, input):
-        embeding_low_raw, image, embeddings, mask = input
-        embeddings = torch.cat([F.relu(self.embedding_reducer(embeddings)), mask], 1) # 1:32
-        embeddings = self.transform(embeddings) # 1:16
-        embeddings = self.transform(embeddings) # 1:8
-        embeding_low = F.adaptive_max_pool2d(embeding_low_raw, output_size=(embeddings.size()[2], embeddings.size()[3])) # corrected 1:8
-        embeding_low = F.relu(self.merger_low_level(torch.cat([embeding_low, embeddings], 1)))    
-        embeding_low = F.upsample(embeding_low, size=(image.size()[2], image.size()[3]), mode='bilinear') # 1:1
-        embeding_low = F.relu(self.fully_connected_1(embeding_low))
-        refined_mask = F.sigmoid(self.fully_connected_2(embeding_low))
+        input_image_size, predicted_masks_crop, embeddings_crop, embeddings_3_crop, embeddings_2_crop, embeddings_1_crop = input
+
+        embeddings = F.relu(self.convolutional_16_reducer(embeddings_crop))
+        embeddings = F.relu(self.convolutional_16_merger(torch.cat([embeddings, predicted_masks_crop], 1))) # 1:16
+
+        embeddings_upsampled = F.upsample(embeddings, size=(embeddings_3_crop.size()[2], embeddings_3_crop.size()[3]), mode='bilinear') # 1:8
+        embeddings = F.relu(self.convolutional_8(torch.cat([embeddings_upsampled, embeddings_3_crop], 1)))
+        
+        embeddings_upsampled = F.upsample(embeddings, size=(embeddings_2_crop.size()[2], embeddings_2_crop.size()[3]), mode='bilinear') # 1:4
+        embeddings = F.relu(self.convolutional_4(torch.cat([embeddings_upsampled, embeddings_2_crop], 1)))
+        
+        embeddings_upsampled = F.upsample(embeddings, size=(embeddings_1_crop.size()[2], embeddings_1_crop.size()[3]), mode='bilinear') # 1:2
+        embeddings = F.relu(self.convolutional_2(torch.cat([embeddings_upsampled, embeddings_1_crop], 1)))
+        
+        embeddings = F.upsample(embeddings, size=(input_image_size[2], input_image_size[3]), mode='bilinear') # 1:1
+        refined_mask = F.sigmoid(self.convolutional_1(embeddings))
         return refined_mask

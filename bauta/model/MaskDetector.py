@@ -9,9 +9,9 @@ class MaskDetector(nn.Module):
 
     def __init__(self, filter_banks, filter_size):
         super(MaskDetector, self).__init__()
-        self.dilations_count = 3
+        self.dilations_count = 4
         self.dilation_blocks_count = 5
-        self.initial_filter = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, filter_banks, filter_size, 1)
+        self.initial_filter = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(46, filter_banks, filter_size, 1)
 
         dilation_blocks = []
         bottlenecks = []

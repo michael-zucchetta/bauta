@@ -1,5 +1,3 @@
-import torchvision.models as models
-
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 import torch.nn as nn
@@ -14,25 +12,30 @@ from bauta.utils.ModelUtils import ModelUtils
 
 class Backbone(nn.Module):
 
-    def __init__(self, ):
+    def __init__(self):
         super(Backbone, self).__init__()
-        model = models.resnet18(pretrained=True)
-        model.eval()
-        self.conv1 = model.conv1
-        self.bn1 = model.bn1
-        self.maxpool = model.maxpool
-        self.layer1 = model.layer1
-        self.layer2 = model.layer2
-        self.layer3 = model.layer3
+        hidden_filter_banks = 32
+        initial_filter_banks = 3
+        filter_size = 7
+        self.dilation1_1_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(initial_filter_banks, int(hidden_filter_banks / 16), filter_size, 1)
+        self.dilation1_2_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(int(hidden_filter_banks / 16), int(hidden_filter_banks / 8), filter_size, 1)
+        self.dilation1_3_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(int(hidden_filter_banks / 8), int(hidden_filter_banks / 4), filter_size, 1)
+        self.dilation1_4_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(int(hidden_filter_banks / 4), int(hidden_filter_banks), filter_size, 1)
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = F.relu(x)
-        x = self.maxpool(x)
-        embeding_low_raw = self.layer1(x)
-        embeding_mid_raw = self.layer2(embeding_low_raw)
-        embeding_high_raw = self.layer3(embeding_mid_raw)        
-        embeding_low = F.adaptive_max_pool2d(embeding_low_raw, (embeding_high_raw.size()[2], embeding_high_raw.size()[3]))
-        embeding_mid = F.adaptive_max_pool2d(embeding_mid_raw, (embeding_high_raw.size()[2], embeding_high_raw.size()[3]))
-        return torch.cat([embeding_high_raw, embeding_low, embeding_mid], 1), embeding_low_raw
+    def forward(self, input):
+        input_scaled = nn.AvgPool2d(2, 2)(input)
+        embeddings_1_raw = F.relu(self.dilation1_1_encode(input_scaled))
+        embeddings_1 = nn.AvgPool2d(8, 8)(embeddings_1_raw)
+
+        embeddings_1_raw_scaled = nn.AvgPool2d(2, 2)(embeddings_1_raw)
+        embeddings_2_raw = F.relu(self.dilation1_2_encode(embeddings_1_raw_scaled))
+        embeddings_2 = nn.AvgPool2d(4, 4)(embeddings_2_raw)
+
+        embeddings_2_raw_scaled = nn.AvgPool2d(2, 2)(embeddings_2_raw)
+        embeddings_3_raw = F.relu(self.dilation1_3_encode(embeddings_2_raw_scaled))
+        embeddings_3 = nn.AvgPool2d(2, 2)(embeddings_3_raw)
+
+        embeddings_3_raw_scaled = nn.AvgPool2d(2, 2)(embeddings_3_raw)
+        embeddings_4_raw = F.relu(self.dilation1_4_encode(embeddings_3_raw_scaled))
+
+        return torch.cat([embeddings_1, embeddings_2, embeddings_3, embeddings_4_raw], 1), embeddings_1_raw, embeddings_2_raw, embeddings_3_raw
