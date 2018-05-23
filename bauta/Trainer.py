@@ -78,7 +78,7 @@ class Trainer():
             input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
             if self.visual_logging:
                self.visualLoggingDataset(input_images, target_mask)
-            predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw = self.model.forward(input_images)
+            predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
             target_mask = nn.AvgPool2d(16)(target_mask)
             loss = self.focalLoss(predicted_masks, target_mask)
             average_current_test_loss = average_current_test_loss + loss[0].data[0]
@@ -143,15 +143,19 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    def logLoss(self, loss, loss_refiner, epoch, train_dataset_index, dataset_train):
+    def logLoss(self, loss_mask, loss_refiner, epoch, train_dataset_index, dataset_train):
         if loss_refiner is None :
             refiner_loss_message = 'Mask detector not accurate enough to train samples in batch.'
         else:
-            refiner_loss_message = f'{loss_refiner:{1}.{4}}'
-        self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] -- Mask Loss: {loss:{1}.{4}} -- Refiner Loss: {refiner_loss_message}')
+            refiner_loss_message = f'{loss_refiner.data[0]:{1}.{4}}'
+        self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] -- Mask Loss: {loss_mask.data[0]:{1}.{4}} -- Refined Mask Loss: {refiner_loss_message}')
 
     def buildOptimizer(self):
-        optimizer = torch.optim.SGD(params = self.model.parameters(), lr=self.learning_rate, momentum=self.momentum, nesterov=True)
+        #optimizer = torch.optim.SGD([ 
+        #    {'params': self.model.backbone.parameters(), 'lr': self.learning_rate},
+        #    {'params': self.model.mask_detectors.parameters(), 'lr': self.learning_rate}], momentum=self.momentum, nesterov=True)
+        optimizer = torch.optim.SGD([ 
+            {'params': self.model.parameters(), 'lr': self.learning_rate}], momentum=self.momentum, nesterov=True)
         return optimizer
 
     def logRefiner(self, refiner_input_image, target_mask, predicted_mask, predicted_refined_mask, class_index):
@@ -171,10 +175,8 @@ class Trainer():
             cv2.destroyAllWindows()
 
     def trainRefiner(self, input_images, predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw, target_mask, bounding_boxes):
-        mean_refiner_loss = 0.0
-        mean_refiner_count = 0
-        embeddings = Variable(embeddings.data)
-        predicted_masks = Variable(predicted_masks.data)
+        cumulative_loss = None
+        count = 0 
         for batch_index in range(bounding_boxes.size()[0]):
             for object_index in range(bounding_boxes.size()[1]):
                 bounding_box = bounding_boxes[batch_index, object_index, :]
@@ -194,16 +196,16 @@ class Trainer():
                         assert(embeddings.size()[2] == 32 and embeddings.size()[3] == 32)
                         predicted_masks_crop = bounding_box_object_32.cropTensor(predicted_masks, batch_index)
                         predicted_masks_crop = predicted_masks_crop[:, class_index:class_index + 1, :, :]
-                        embeddings_crop      = Variable(bounding_box_object_32.cropTensor(embeddings, batch_index).data)
+                        embeddings_crop      = bounding_box_object_32.cropTensor(embeddings, batch_index)
 
                         assert(embeddings_3_raw.size()[2] == 64 and embeddings_3_raw.size()[3] == 64)
-                        embeddings_3_crop    = Variable(bounding_box_object_64.cropTensor(embeddings_3_raw, batch_index).data)
+                        embeddings_3_crop    = bounding_box_object_64.cropTensor(embeddings_3_raw, batch_index)
                         
                         assert(embeddings_2_raw.size()[2] == 128 and embeddings_2_raw.size()[3] == 128)
-                        embeddings_2_crop    = Variable(bounding_box_object_128.cropTensor(embeddings_2_raw, batch_index).data)
+                        embeddings_2_crop    = bounding_box_object_128.cropTensor(embeddings_2_raw, batch_index)
                         
                         assert(embeddings_1_raw.size()[2] == 256 and embeddings_1_raw.size()[3] == 256)
-                        embeddings_1_crop    = Variable(bounding_box_object_256.cropTensor(embeddings_1_raw, batch_index).data)
+                        embeddings_1_crop    = bounding_box_object_256.cropTensor(embeddings_1_raw, batch_index)
                         
                         assert(target_mask.size()[2] == 512 and target_mask.size()[3] == 512)
                         target_mask_crop     = bounding_box_object.cropTensor(target_mask, batch_index)
@@ -211,19 +213,17 @@ class Trainer():
 
                         assert(input_images.size()[2] == 512 and input_images.size()[3] == 512)
                         input_images_crop    = bounding_box_object.cropTensor(input_images, batch_index)
-                        self.refiner_optimizer.zero_grad()
                         predicted_refined_mask = self.model.mask_refiner([input_images_crop.size(), predicted_masks_crop, embeddings_crop, embeddings_3_crop, embeddings_2_crop, embeddings_1_crop])
                         #self.logRefiner(refiner_input_image_cropped, target_mask, predicted_mask_cropped, predicted_refined_mask, class_index)
                         loss = self.focalLoss(predicted_refined_mask, target_mask_crop)
-                        loss.backward()
-                        mean_refiner_loss = mean_refiner_loss + loss[0].mean().data[0]
-                        mean_refiner_count = mean_refiner_count + 1
-                        self.refiner_optimizer.step()
-        if mean_refiner_count is 0:
-            return None
-        else:
-            return mean_refiner_loss / mean_refiner_count
-
+                        count = count + 1
+                        if cumulative_loss is None:
+                            cumulative_loss = loss
+                        else:
+                            cumulative_loss = cumulative_loss + loss 
+        if cumulative_loss is not None:
+            cumulative_loss = (cumulative_loss) / (16 * 16)
+        return cumulative_loss
 
     def buildRefinerOptimizer(self):
         optimizer = torch.optim.SGD(params = self.model.mask_refiner.parameters(), lr=self.learning_rate, momentum=self.momentum, nesterov=True)
@@ -234,7 +234,7 @@ class Trainer():
         best_test_loss = self.testLoss()
         self.log(f"Initial Test Loss {best_test_loss:{1}.{4}} ")
         optimizer = self.buildOptimizer()
-        self.refiner_optimizer = self.buildRefinerOptimizer()
+        #self.refiner_optimizer = self.buildRefinerOptimizer()
         for epoch in range(self.num_epochs):
             self.log(f"Epoch {epoch}")
             dataset_train = DataAugmentationDataset(True, self.data_path, self.visual_logging)
@@ -246,14 +246,19 @@ class Trainer():
                 sys.stdout.flush()
                 input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
                 self.visualLoggingDataset(input_images, target_mask)
-                predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw  = self.model.forward(input_images)
+                predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
                 optimizer.zero_grad()
                 target_mask_scaled = nn.AvgPool2d(16)(target_mask)
-                loss = self.focalLoss(predicted_masks, target_mask_scaled)
-                loss.backward()
+                loss_mask = self.focalLoss(predicted_masks, target_mask_scaled)
+                loss_refiner = self.trainRefiner(input_images, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, target_mask, bounding_boxes)
+                total_loss = loss_mask
+                if loss_refiner is not None:
+                    total_loss = total_loss + loss_refiner
+                total_loss.backward()
                 optimizer.step()
-                loss_refiner = self.trainRefiner(input_images, predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw, target_mask, bounding_boxes)
-                self.logLoss(loss.data[0], loss_refiner, epoch, train_dataset_index, dataset_train)
+                self.logLoss(loss_mask, loss_refiner, epoch, train_dataset_index, dataset_train)
+                if (train_dataset_index + 1) % 1000 is 0:
+                    best_test_loss = self.testAndSaveIfImproved(best_test_loss)
 
             self.environment.saveModel(self.model, f"{(epoch + 1)}.backup")
             best_test_loss = self.testAndSaveIfImproved(best_test_loss)

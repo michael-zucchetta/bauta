@@ -16,12 +16,12 @@ class MaskRefiner(nn.Module):
 
     def __init__(self):
         super(MaskRefiner, self).__init__()
-        self.convolutional_16_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(46, 15, 13, 1)
+        self.convolutional_16_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(92, 15, 13, 1)
         self.convolutional_16_merger = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(16, 16, 13, 1)
 
-        self.convolutional_8 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(24, 16, 13, 1)
-        self.convolutional_4 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(20, 16, 13, 1)
-        self.convolutional_2 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(18, 16, 13, 1)
+        self.convolutional_8 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(32, 16, 13, 1)
+        self.convolutional_4 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(24, 16, 13, 1)
+        self.convolutional_2 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(20, 16, 13, 1)
         self.convolutional_1 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(16, 1, 13, 1, False)
         ModelUtils.xavier(self.convolutional_1)
         #logits for initial output near 0.98, useful as most of targets are foregrounds during refining
