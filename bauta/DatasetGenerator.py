@@ -22,7 +22,7 @@ class DatasetGenerator():
         self.environment = EnvironmentUtils(self.data_path)
         self.logger = self.system.getLogger(self)
 
-    def createConfigurationFile(self, class_names):
+    def createConfigurationFile(self, class_names, background_classes):
         try:
             class_names_without_background = list(filter(lambda class_name: class_name != constants.background_label, class_names))
             class_names_without_background.sort()
@@ -33,43 +33,53 @@ class DatasetGenerator():
                     classes_yaml  = 'classes:\n'
                     config_yaml_file.write(classes_yaml)
                     [config_yaml_file.write(class_as_string) for class_as_string in classes_as_string]
+                    background_classes_yaml = 'background_classes:\n'
+                    config_yaml_file.write(background_classes_yaml)
+                    [config_yaml_file.write(f'  - {background_class}\n') for background_class in background_classes]
                     self.logger.info('config.yaml created')
         except BaseException as e:
             self.logger.error(f'Cannot open configuration file "{configuration_file_path}"', e)
 
-    def generateDatasetFromListOfImages(self, images_path, split_test_proportion, download_batch_size, download_images):
+    def generateDatasetFromListOfImages(self, images_path, split_test_proportion, download_batch_size, download_images, background_classes):
         self.makeDefaultDirs()
-        if not os.path.isdir(images_path):
-            self.logger.error(f'"{images_path}" is not an existing directory')
-            return None
-        class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path)]
-        if constants.background_label not in class_names:
-             self.logger.error(f'The class "background" is compulsory but it was not found. Thus dataset cannot be created.', e)
-             return None
-        if len(class_names) <= 1:
-            self.logger.error(f'There should be at least one class besides the "background" one (e.g. "cat" and "background").', e)
-            return None
-        self.createConfigurationFile(class_names)
-        image_paths = [os.path.join(images_path, file_in_path) for file_in_path in os.listdir(images_path) \
-            if self.system.hasExtension(os.path.join(images_path, file_in_path), ['txt'])]
-        class_names = []
-        for image_path in image_paths:
-            file_in_path = os.path.basename(image_path)
-            class_name = os.path.splitext(file_in_path)[0]
-            train_path = self.environment.objectsFolder(class_name, is_train=True)
-            test_path  = self.environment.objectsFolder(class_name, is_train=False)
-            self.system.makeDirIfNotExists(train_path)
-            self.system.makeDirIfNotExists(test_path)
+        if images_path is not None:
+            if not os.path.isdir(images_path):
+                self.logger.error(f'"{images_path}" is not an existing directory')
+                return None
+            class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path)]
+            for background_class in background_classes:
+                if not background_class in class_names:
+                    self.logger.error(f'Specified noise class {background_class} is not in the directory {images_path}')
+                    return None
+            foreground_class_names = set(class_names) - set(background_classes)
 
-            existing_train_images = self.readImages( os.path.join(train_path, f'{class_name}.txt'), True )
-            existing_test_images = self.readImages( os.path.join(test_path, f'{class_name}.txt'), True )
-            images = self.readImages(image_path)
-            training_set, test_set = self.testTrainSplit(images, existing_train_images, existing_test_images, split_test_proportion)
-            shuffle(training_set)
-            shuffle(test_set)
-            self.writeImages(f'{train_path}/{class_name}.txt', training_set)
-            self.writeImages(f'{test_path}/{class_name}.txt', test_set)
-            class_names.append(class_name)
+            if constants.background_label not in foreground_class_names:
+                 self.logger.error(f'The class "background" is compulsory but it was not found. Thus dataset cannot be created.', e)
+                 return None
+            if len(foreground_class_names) <= 1:
+                self.logger.error(f'There should be at least one class besides the "background" one (e.g. "cat" and "background").', e)
+                return None
+            self.createConfigurationFile(foreground_class_names, background_classes)
+            image_paths = [os.path.join(images_path, file_in_path) for file_in_path in os.listdir(images_path) \
+                if self.system.hasExtension(os.path.join(images_path, file_in_path), ['txt'])]
+            class_names = []
+            for image_path in image_paths:
+                file_in_path = os.path.basename(image_path)
+                class_name = os.path.splitext(file_in_path)[0]
+                train_path = self.environment.objectsFolder(class_name, is_train=True)
+                test_path  = self.environment.objectsFolder(class_name, is_train=False)
+                self.system.makeDirIfNotExists(train_path)
+                self.system.makeDirIfNotExists(test_path)
+
+                existing_train_images = self.readImages( os.path.join(train_path, f'{class_name}.txt'), True )
+                existing_test_images = self.readImages( os.path.join(test_path, f'{class_name}.txt'), True )
+                images = self.readImages(image_path)
+                training_set, test_set = self.testTrainSplit(images, existing_train_images, existing_test_images, split_test_proportion)
+                shuffle(training_set)
+                shuffle(test_set)
+                self.writeImages(f'{train_path}/{class_name}.txt', training_set)
+                self.writeImages(f'{test_path}/{class_name}.txt', test_set)
+                class_names.append(class_name)
         if download_images:
             self.downloadImages(download_batch_size)
         return class_names
@@ -151,6 +161,8 @@ class DatasetGenerator():
             name_and_extension = os.path.splitext(image_url_path)
             if len(name_and_extension) == 2:
                 image_extension = name_and_extension[1]
+                if image_extension == '':
+                    image_extension = '.jpg'
             else:
                 image_extension = '.png'
             local_file_path = os.path.join(self.environment.objectsFolder(class_name, is_train), f'{image_id}{image_extension}')

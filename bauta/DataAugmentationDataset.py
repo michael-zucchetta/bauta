@@ -47,8 +47,25 @@ class DataAugmentationDataset(Dataset):
     def __len__(self):
         return self.length
 
-    def scale(self, image):
-        return cv2.resize(image, (constants.input_width, constants.input_height))
+    def cutImageBackground(self, image):
+        image_info = ImageInfo(image)
+        scale_x = constants.input_width / image_info.width
+        scale_y = constants.input_height / image_info.height
+        if scale_x > scale_y:
+            image = cv2.resize(image, ( constants.input_width, int(image_info.height * scale_x)) )
+        else:
+            image = cv2.resize(image, ( int(image_info.width * scale_y), constants.input_height) )
+        image_info = ImageInfo(image)
+
+        x_seed = random.uniform(0, 1) * (image_info.width - constants.input_width)
+
+        initial_width = int(0 + x_seed)
+        final_width = int(x_seed + constants.input_width)
+
+        y_seed = random.uniform(0, 1) * (image_info.height - constants.input_height)
+        initial_height = int(0 + y_seed)
+        final_height = int(y_seed + constants.input_height)
+        return image[initial_height:final_height, initial_width:final_width, :]
 
     def coverInputDimensions(self, image):
         image_info = ImageInfo(image)
@@ -63,9 +80,10 @@ class DataAugmentationDataset(Dataset):
         background_index = np.random.randint(len(self.config.objects[constants.background_label]), size=1)[0] % len(self.config.objects[constants.background_label])
         background_image = cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR)
         if background_image is not None and len(background_image.shape) == 3:
-            background = self.scale(cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR))
+            background = self.cutImageBackground(background_image)
             background = self.coverInputDimensions(background)
-            return background[:, 0:constants.input_width, 0:constants.input_height]
+            background = self.applyRandomBackgroundObjects(background)
+            return background
         else:
             if self.config.remove_corrupted_files:
                 self.logger.warning(f'Removing corrupted image {self.config.objects[constants.background_label][background_index]}')
@@ -81,17 +99,21 @@ class DataAugmentationDataset(Dataset):
             image = cv2.resize(image, (int(constants.input_height * image_info.aspect_ratio), constants.input_height))
         return image
 
-    def objectInClass(self, index, class_index):
-        class_label = self.config.classes[class_index]
+    def objectInClass(self, index, class_index, background_classes=False):
+        if not background_classes:
+            class_label = self.config.classes[class_index]
+        else:
+            class_label = self.config.background_classes[class_index]
         object_index = index % len(self.config.objects[class_label])
         current_object = cv2.imread(self.config.objects[class_label][object_index], cv2.IMREAD_UNCHANGED)
+
         if current_object is not None:
             current_object = self.basic_background_remover.removeFlatBackgroundFromRGB(current_object)
             current_object = self.imageWithinInputDimensions(current_object)
             return current_object
         else:
             if self.config.remove_corrupted_files:
-                self.logger.warning(f'Removing courrpted image {self.config.objects[class_label][object_index]}')
+                self.logger.warning(f'Removing corrupted image {self.config.objects[class_label][object_index]}')
                 self.system_utils.rm(self.config.objects[class_label][object_index])
             raise ValueError(f'Could not load object of class {class_label} in index {object_index}: {self.config.objects[class_label][object_index]}')
 
@@ -117,6 +139,21 @@ class DataAugmentationDataset(Dataset):
                 if class_index_to_count[random_class_index] < self.config.max_objects_per_class:
                     class_index_to_count[random_class_index] = class_index_to_count[random_class_index] + 1
         return class_index_to_count
+
+    def applyRandomBackgroundObjects(self, background):
+        if len(self.config.background_classes) > 0 and self.config.max_background_objects_per_image > 0:
+            size_random_background_objects = random.randint(1, self.config.max_background_objects_per_image)
+            background_object_images = []
+            for _ in range(size_random_background_objects):
+                random_background_class_index = random.randint(0, len(self.config.background_classes) - 1)
+                random_background_class = self.config.background_classes[random_background_class_index]
+                random_object_index = random.randint(0, len(self.config.objects[random_background_class]) - 1)
+                background_object_image = self.objectInClass(random_object_index, random_background_class_index, background_classes=True) 
+                distorted_background_object = self.image_distortions.distortImage(background_object_image)
+                background, _ = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_background_object, background, 0, 0)
+            return background
+        else:
+            return background
 
     def getObjectsInImage(self, target_masks, original_object_areas):
         objects_in_image = self.environment.objectsInImage(self.config.classes)

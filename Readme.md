@@ -65,13 +65,20 @@ source activate bauta
 The `data_path` will contain several subfolders where the dataset, models and test and train images are stored.
 
 Each directory in the train and test dataset will contain a file with the list of images URLs. If not specified otherwise, it will download the images as well.
-The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` and contains a single attribute with the lists of classes.
+The dataset configuration will be stored in the file `DATA_FOLDER/config.yaml` which contains a single attribute with the lists of classes.
 
-For example, say that we have a dataset of pets supporting the class `dog` and `cat`. This means that the `config.yaml` will be the following:
+It is possible to add **background classes**, a type of class that is added to the background for objects that are supposed to appear frequently on a 
+background. The folder with the images is on the same path as the other classes, but the config file will be different.
+
+For example, say that we have a dataset of pets supporting the class `dog`, `cat` segmentation with a `tree` class put on the background we do not care to detect and segment.
+
+This means that the `config.yaml` will be the following:
 ```
 classes:
   - cat
   - dog
+background_classes:
+  - tree
 ```
 
 The script will also create the following folders and will fill them with the train and test split.
