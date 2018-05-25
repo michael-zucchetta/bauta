@@ -13,24 +13,21 @@ import torch.nn.functional as F
 from torchvision import transforms, utils
 
 from bauta.DataAugmentationDataset import DataAugmentationDataset
-from bauta.utils.InferenceUtils import InferenceUtils
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.SystemUtils import SystemUtils
 from bauta.utils.CudaUtils import CudaUtils
 from bauta.utils.ImageUtils import ImageUtils
-from bauta.DatasetConfiguration import DatasetConfiguration
 from bauta.InferenceResult import InferenceResult
 
 class Inferencer():
 
-    def __init__(self, data_path, visual_logging, gpu):
+    def __init__(self, inference_utils, config, visual_logging, gpu):
         self.visual_logging = visual_logging
         self.gpu = gpu
-        self.data_path = data_path
+        self.inference_utils = inference_utils
         self.cuda_utils = CudaUtils()
         self.image_utils = ImageUtils()
-        self.config = DatasetConfiguration(False, data_path)
-
+        self.config = config
 
     def extractObjects(self, inference_results):
         new_inference_results = []
@@ -82,16 +79,14 @@ class Inferencer():
     def inferenceOnImage(self, model, input_image):
         input_image, new_height, new_width = self.image_utils.paddingScale(input_image)
         if self.visual_logging:
-            print(input_image.shape)
             cv2.imshow(f'Input padding scale', input_image)
             cv2.waitKey(0)
         input_image = Variable(transforms.ToTensor()(input_image))
         input_image = self.cuda_utils.cudify([input_image.unsqueeze(0)], self.gpu)[0]
         predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
-        inference_utils = InferenceUtils(self.config, self.visual_logging)
-        connected_components_predicted = inference_utils.extractConnectedComponents(predicted_masks)
+        connected_components_predicted = self.inference_utils.extractConnectedComponents(predicted_masks)
         refiner_dataset = \
-            inference_utils.cropRefinerDataset(connected_components_predicted, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, input_image)
+            self.inference_utils.cropRefinerDataset(connected_components_predicted, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, input_image)
         inference_results = self.refine(refiner_dataset, model.mask_refiner)
         objects = self.extractObjects(inference_results)
         return objects

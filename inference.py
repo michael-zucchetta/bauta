@@ -10,6 +10,8 @@ from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.CudaUtils import CudaUtils
 from bauta.Constants import constants
 from bauta.ImageInfo import ImageInfo
+from bauta.DatasetConfiguration import DatasetConfiguration
+from bauta.utils.InferenceUtils import InferenceUtils
 
 class Inference():
 
@@ -66,10 +68,15 @@ class Inference():
 @click.option('--data_path', default=f'{os.getcwd()}', help='Data path.')
 @click.option('--path', default="", help='Path to the folder or image that contain input image(s).')
 @click.option('--result_folder', default="~", help='File where segmented images are stored.')
+@click.option('--max_threshold', default=0.4, help='Probability that at least one activation will have to reach in order to consider the object to be in the mask.')
+@click.option('--density_threshold', default=20, help='Minimum mean of the overall mask normalized to the mask maximum so that an object is considrered in the image.')
+@click.option('--area_thresold', default=0.05, help='Minimum percentage of the area inside the image that the object has to occupy so that an object is considered in the mask')
 @click.option('--visual_logging', default=False, help='Diplay in a window the intermediate and final inference results.')
 @click.option('--gpu', default=0, help='GPU index')
-def inference(data_path, path, result_folder, visual_logging, gpu):
-    inferencer = Inferencer(data_path, visual_logging, gpu)
+def inference(data_path, path, result_folder, max_threshold, density_threshold, area_thresold, visual_logging, gpu):
+    config = DatasetConfiguration(False, data_path)
+    inference_utils = InferenceUtils(max_threshold, density_threshold, area_thresold, config, visual_logging)
+    inferencer = Inferencer(inference_utils, config, visual_logging, gpu)
     inference = Inference(data_path, path, inferencer, result_folder, visual_logging, gpu)
     inference.inference(path)
 

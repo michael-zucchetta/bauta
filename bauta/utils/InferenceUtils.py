@@ -19,8 +19,11 @@ from bauta.InferenceResult import InferenceResult
 
 class InferenceUtils():
 
-    def __init__(self, config, visual_logging):
+    def __init__(self, max_threshold, density_threshold, area_thresold, config, visual_logging):
         self.config = config
+        self.max_threshold = max_threshold
+        self.density_threshold = density_threshold 
+        self.area_thresold = area_thresold
         self.visual_logging = visual_logging
         self.image_utils = ImageUtils()
 
@@ -88,7 +91,7 @@ class InferenceUtils():
                     cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask, (mask.shape[1] * 16, mask.shape[0] * 16)) )
                     cv2.waitKey(0)
                 maximum = mask.max()
-                if maximum > 0.40:
+                if maximum > self.max_threshold:
                     mask = (mask * 255) / maximum
                     mask = mask.astype(np.uint8)
                     bounding_boxes = InferenceUtils.extractConnectedComponentsInMask(mask) #TODO: threshold
@@ -99,8 +102,8 @@ class InferenceUtils():
                             if self.visual_logging:
                                 cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask_cropped, (mask_cropped.shape[1] * 16, mask_cropped.shape[0] * 16)) )
                                 cv2.waitKey(0)
-                            if mask_density > 20:
-                                if (bounding_box.area / mask_area) >= 0.05:
+                            if mask_density > self.density_threshold:
+                                if (bounding_box.area / mask_area) >= self.area_thresold:
                                     if not batch_index in connected_components:
                                         connected_components[batch_index] = {}
                                     if not class_index in connected_components[batch_index]:
