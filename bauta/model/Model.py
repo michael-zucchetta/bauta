@@ -27,5 +27,5 @@ class Model(nn.Module):
     def forward(self, input):
         cuda_utils = CudaUtils()
         embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.backbone(input)
-        masks = self.mask_detectors(embeddings_merged)
-        return masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8
+        predicted_masks = self.mask_detectors(embeddings_merged)
+        return predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8

@@ -78,10 +78,8 @@ class Trainer():
             input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
             if self.visual_logging:
                self.visualLoggingDataset(input_images, target_mask)
-            predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
-            target_mask = nn.AvgPool2d(16)(target_mask)
-            loss = self.focalLoss(predicted_masks, target_mask)
-            average_current_test_loss = average_current_test_loss + loss[0].data[0]
+            total_loss, loss_mask, loss_refiner =  self.computeLoss(input_images, target_mask, bounding_boxes)
+            average_current_test_loss = average_current_test_loss + total_loss[0].data[0]
             iterations = iterations + 1.0
         average_current_test_loss = average_current_test_loss / iterations
         self.test_loss_history.append(average_current_test_loss)
@@ -143,17 +141,14 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    def logLoss(self, loss_mask, loss_refiner, epoch, train_dataset_index, dataset_train):
+    def logLoss(self, total_loss, loss_mask, loss_refiner, epoch, train_dataset_index, dataset_train):
         if loss_refiner is None :
             refiner_loss_message = 'Mask detector not accurate enough to train samples in batch.'
         else:
             refiner_loss_message = f'{loss_refiner.data[0]:{1}.{4}}'
-        self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] -- Mask Loss: {loss_mask.data[0]:{1}.{4}} -- Refined Mask Loss: {refiner_loss_message}')
+        self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] --  Total Loss: {total_loss.data[0]:{1}.{4}}  -- Mask Loss: {loss_mask.data[0]:{1}.{4}} -- Refined Mask Loss: {refiner_loss_message}')
 
     def buildOptimizer(self):
-        #optimizer = torch.optim.SGD([ 
-        #    {'params': self.model.backbone.parameters(), 'lr': self.learning_rate},
-        #    {'params': self.model.mask_detectors.parameters(), 'lr': self.learning_rate}], momentum=self.momentum, nesterov=True)
         optimizer = torch.optim.SGD([ 
             {'params': self.model.parameters(), 'lr': self.learning_rate}], momentum=self.momentum, nesterov=True)
         return optimizer
@@ -214,6 +209,20 @@ class Trainer():
                         assert(input_images.size()[2] == 512 and input_images.size()[3] == 512)
                         input_images_crop    = bounding_box_object.cropTensor(input_images, batch_index)
                         predicted_refined_mask = self.model.mask_refiner([input_images_crop.size(), predicted_masks_crop, embeddings_crop, embeddings_3_crop, embeddings_2_crop, embeddings_1_crop])
+                        if self.visual_logging:
+                            cv2.imshow(f'Embeddings "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Embeddings 3 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_3_raw[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Embeddings 2 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_2_raw[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Embeddings 1 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_1_raw[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Crop Embeddings "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Crop Embeddings 3"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_3_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Crop Embeddings 2"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_2_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Crop Embeddings 1"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_1_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
+                            cv2.imshow(f'Crop Mask "{self.config.classes[class_index]}".', self.image_utils.toNumpy(torch.nn.Upsample(size=(predicted_refined_mask.size()[2], predicted_refined_mask.size()[3]), mode='bilinear')(predicted_masks_crop).data.squeeze()))
+                            cv2.imshow(f'Crop Refiner Predicted Mask "{self.config.classes[class_index]}".', self.image_utils.toNumpy(predicted_refined_mask.data.squeeze()))
+                            cv2.imshow(f'Crop Refiner Target Mask "{self.config.classes[class_index]}".', self.image_utils.toNumpy(target_mask_crop.data.squeeze()))
+                            cv2.waitKey(0)
+                            cv2.destroyAllWindows()
                         #self.logRefiner(refiner_input_image_cropped, target_mask, predicted_mask_cropped, predicted_refined_mask, class_index)
                         loss = self.focalLoss(predicted_refined_mask, target_mask_crop)
                         count = count + 1
@@ -225,16 +234,21 @@ class Trainer():
             cumulative_loss = (cumulative_loss) / (16 * 16)
         return cumulative_loss
 
-    def buildRefinerOptimizer(self):
-        optimizer = torch.optim.SGD(params = self.model.mask_refiner.parameters(), lr=self.learning_rate, momentum=self.momentum, nesterov=True)
-        return optimizer
+    def computeLoss(self, input_images, target_mask, bounding_boxes):
+        predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
+        target_mask_scaled = nn.AvgPool2d(16)(target_mask)
+        loss_mask = self.focalLoss(predicted_masks, target_mask_scaled)
+        loss_refiner = self.trainRefiner(input_images, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, target_mask, bounding_boxes)
+        total_loss = loss_mask
+        if loss_refiner is not None:
+            total_loss = total_loss + loss_refiner
+        return total_loss, loss_mask, loss_refiner
 
     def train(self):
         self.model = self.cuda_utils.cudify([self.loadModel()], self.gpu)[0]
         best_test_loss = self.testLoss()
         self.log(f"Initial Test Loss {best_test_loss:{1}.{4}} ")
         optimizer = self.buildOptimizer()
-        #self.refiner_optimizer = self.buildRefinerOptimizer()
         for epoch in range(self.num_epochs):
             self.log(f"Epoch {epoch}")
             dataset_train = DataAugmentationDataset(True, self.data_path, self.visual_logging)
@@ -246,17 +260,11 @@ class Trainer():
                 sys.stdout.flush()
                 input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
                 self.visualLoggingDataset(input_images, target_mask)
-                predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
                 optimizer.zero_grad()
-                target_mask_scaled = nn.AvgPool2d(16)(target_mask)
-                loss_mask = self.focalLoss(predicted_masks, target_mask_scaled)
-                loss_refiner = self.trainRefiner(input_images, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, target_mask, bounding_boxes)
-                total_loss = loss_mask
-                if loss_refiner is not None:
-                    total_loss = total_loss + loss_refiner
+                total_loss, loss_mask, loss_refiner =  self.computeLoss(input_images, target_mask, bounding_boxes)
                 total_loss.backward()
                 optimizer.step()
-                self.logLoss(loss_mask, loss_refiner, epoch, train_dataset_index, dataset_train)
+                self.logLoss(total_loss, loss_mask, loss_refiner, epoch, train_dataset_index, dataset_train)
                 if (train_dataset_index + 1) % 1000 is 0:
                     best_test_loss = self.testAndSaveIfImproved(best_test_loss)
 

@@ -56,35 +56,42 @@ class Inferencer():
             new_inference_results.append(inference_result)
         return new_inference_results
 
-    def refine(self, refiner_dataset, model):
+    def refine(self, refiner_dataset, mask_refiner):
         inference_results = []
         for batch_index in refiner_dataset.keys():
             for class_index in refiner_dataset[batch_index].keys():
                 for connected_component in refiner_dataset[batch_index][class_index]:
-                    low_level_embeddings, input_image, predicted_mask, embeddings= \
-                        self.cuda_utils.cudify([connected_component['low_level_embeddings'], connected_component['input_image'], connected_component['predicted_mask'], connected_component['embeddings']], self.gpu)
-                    #cv2.imshow(f'Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_mask.squeeze().data))
+                    embeddings = self.cuda_utils.cudify(connected_component['embeddings'], self.gpu)
+                    predicted_refined_mask = mask_refiner(embeddings)
+                    if self.visual_logging:
+                        cv2.imshow(f'Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask.squeeze().data))
+                        cv2.waitKey(0)
+                    #cv2.imshow(f'mask {class_index}', image_utils.toNumpy(mask.data.squeeze(0).squeeze(0)))
+                    #cv2.imshow(f'Image', image_utils.toNumpy(input_image.data.squeeze(0).squeeze(0)))
                     #cv2.waitKey(0)
-                    predicted_refined_mask  = model.mask_refiner([low_level_embeddings, input_image, embeddings, predicted_mask])
                     #cv2.imshow(f'Refined Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask.squeeze().data))
                     #cv2.waitKey(0)
                     inference_result = InferenceResult(\
                         class_label = self.config.classes[class_index],
-                        bounding_box = connected_component['bounding_box_scaled'],
+                        bounding_box = connected_component['bounding_box'],
                         mask = predicted_refined_mask,
-                        image = input_image)
+                        image = connected_component['input_image'])
                     inference_results.append(inference_result)
         return inference_results
 
     def inferenceOnImage(self, model, input_image):
         input_image, new_height, new_width = self.image_utils.paddingScale(input_image)
-        input_image_preprocessed = Variable(DataAugmentationDataset.preprocessInputImage(input_image))
-        input_image_preprocessed = self.cuda_utils.cudify([input_image_preprocessed.unsqueeze(0)], self.gpu)[0]
-        print(input_image_preprocessed.size())
-        predicted_masks, embeddings, low_level_embeddings  = model.forward(input_image_preprocessed)
-        connected_components_predicted = InferenceUtils.extractConnectedComponents(predicted_masks)
+        if self.visual_logging:
+            print(input_image.shape)
+            cv2.imshow(f'Input padding scale', input_image)
+            cv2.waitKey(0)
+        input_image = Variable(transforms.ToTensor()(input_image))
+        input_image = self.cuda_utils.cudify([input_image.unsqueeze(0)], self.gpu)[0]
+        predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
+        inference_utils = InferenceUtils(self.config, self.visual_logging)
+        connected_components_predicted = inference_utils.extractConnectedComponents(predicted_masks)
         refiner_dataset = \
-            InferenceUtils.cropRefinerDataset(connected_components_predicted, embeddings, None, low_level_embeddings, transforms.ToTensor()(input_image).unsqueeze(0))
-        inference_results = self.refine(refiner_dataset, model)
+            inference_utils.cropRefinerDataset(connected_components_predicted, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, input_image)
+        inference_results = self.refine(refiner_dataset, model.mask_refiner)
         objects = self.extractObjects(inference_results)
         return objects

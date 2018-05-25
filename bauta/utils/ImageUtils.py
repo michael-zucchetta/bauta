@@ -76,7 +76,7 @@ class ImageUtils():
     def paddingScale(self, input_image, input_height=constants.input_height, input_width=constants.input_width):
         image_info = ImageInfo(input_image)
         # image scaled to input field keeping aspect ratio
-        if input_width / input_height <= image_info.aspect_ratio:
+        if input_width / input_height > image_info.aspect_ratio:
             new_height = input_height
             new_width  = int(input_height * image_info.aspect_ratio)
             input_image_scaled = cv2.resize(input_image, (new_width, new_height))
