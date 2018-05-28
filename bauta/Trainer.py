@@ -108,30 +108,6 @@ class Trainer():
             model = Model(len(self.config.classes), 32, 5, 15)
             model.backbone = old_model.backbone
             model.mask_detectors = old_model.mask_detectors
-            for mask_refiner in model.mask_refiners.mask_refiners:
-
-                mask_refiner.convolutional_16_reducer[0].weight.data = old_model.mask_refiner.convolutional_16_reducer[0].weight.data.clone()
-                mask_refiner.convolutional_16_reducer[0].bias.data = old_model.mask_refiner.convolutional_16_reducer[0].bias.data.clone()
-                mask_refiner.convolutional_16_reducer[1].weight.data = old_model.mask_refiner.convolutional_16_reducer[1].weight.data.clone()
-                mask_refiner.convolutional_16_reducer[1].bias.data = old_model.mask_refiner.convolutional_16_reducer[1].bias.data.clone()
-
-                mask_refiner.convolutional_8[0].weight.data = old_model.mask_refiner.convolutional_8[0].weight.data.clone()
-                mask_refiner.convolutional_8[0].bias.data = old_model.mask_refiner.convolutional_8[0].bias.data.clone()
-                mask_refiner.convolutional_8[1].weight.data = old_model.mask_refiner.convolutional_8[1].weight.data.clone()
-                mask_refiner.convolutional_8[1].bias.data = old_model.mask_refiner.convolutional_8[1].bias.data.clone()
-
-                mask_refiner.convolutional_4[0].weight.data = old_model.mask_refiner.convolutional_4[0].weight.data.clone()
-                mask_refiner.convolutional_4[0].bias.data = old_model.mask_refiner.convolutional_4[0].bias.data.clone()
-                mask_refiner.convolutional_4[1].weight.data = old_model.mask_refiner.convolutional_4[1].weight.data.clone()
-                mask_refiner.convolutional_4[1].bias.data = old_model.mask_refiner.convolutional_4[1].bias.data.clone()
-
-                #mask_refiner.convolutional_2[0].weight.data = old_model.mask_refiner.convolutional_2[0].weight.data.clone()
-                #mask_refiner.convolutional_2[0].bias.data = old_model.mask_refiner.convolutional_2[0].bias.data.clone()
-                #mask_refiner.convolutional_2[1].weight.data = old_model.mask_refiner.convolutional_2[1].weight.data.clone()
-                #mask_refiner.convolutional_2[1].bias.data = old_model.mask_refiner.convolutional_2[1].bias.data.clone()
-
-                #mask_refiner.convolutional_1.weight.data = old_model.mask_refiner.convolutional_1.weight.data.clone()
-                #mask_refiner.convolutional_1.bias.data = old_model.mask_refiner.convolutional_1.bias.data.clone()
                 
         self.log(model)
         return model
