@@ -11,7 +11,8 @@ from bauta.utils.CudaUtils import CudaUtils
 from bauta.utils.ModelUtils import ModelUtils
 
 from bauta.model.Backbone import Backbone
-from bauta.model.MaskRefiner import MaskRefiner
+#from bauta.model.MaskRefiner import MaskRefiner
+from bauta.model.MaskRefiners import MaskRefiners
 from bauta.model.MaskDetectors import MaskDetectors
 
 class Model(nn.Module):
@@ -22,7 +23,7 @@ class Model(nn.Module):
         self.classes = classes
         self.backbone = Backbone()
         self.mask_detectors = MaskDetectors(classes, filter_banks, filter_size)
-        self.mask_refiner = MaskRefiner()
+        self.mask_refiners = MaskRefiners(classes)
 
     def forward(self, input):
         cuda_utils = CudaUtils()

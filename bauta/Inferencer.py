@@ -65,7 +65,7 @@ class Inferencer():
                         self.cuda_utils.cudify([connected_component['input_image'], connected_component['predicted_mask'], connected_component['embeddings']], self.gpu)
                     #cv2.imshow(f'Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_mask.squeeze().data))
                     #cv2.waitKey(0)
-                    predicted_refined_mask  = model.mask_refiner([input_image, embeddings, predicted_mask])
+                    predicted_refined_mask  = model.mask_refiners([input_image, embeddings, class_index, predicted_mask])
                     #cv2.imshow(f'Refined Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask.squeeze().data))
                     #cv2.waitKey(0)
                     inference_result = InferenceResult(\
