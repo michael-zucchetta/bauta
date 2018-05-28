@@ -199,7 +199,7 @@ class Trainer():
                         target_mask = target_masks_batch[:, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
                         refiner_target_mask = refiner_target_masks_batch[:, class_index:class_index+1,bounding_box_object.top:bounding_box_object.bottom+1,bounding_box_object.left:bounding_box_object.right+1]
                         predicted_mask_cropped = predicted_masks[batch_index:batch_index+1, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
-                        predicted_refined_mask  = self.model.mask_refiners([refiner_input_image_cropped, embeddings_cropped, class_index, predicted_masks[batch_index:batch_index+1, :, bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]])#predicted_mask_cropped])
+                        predicted_refined_mask  = self.model.mask_refiners([refiner_input_image_cropped, embeddings_cropped, class_index, predicted_masks[batch_index:batch_index+1, class_index:class_index + 1, bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]])#predicted_mask_cropped])
                         self.logRefiner(refiner_input_image_cropped, target_mask, predicted_mask_cropped, predicted_refined_mask, class_index)
                         self.refiner_optimizer.zero_grad()
                         loss = self.focalLoss(predicted_refined_mask, refiner_target_mask)
