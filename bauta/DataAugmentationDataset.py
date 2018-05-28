@@ -199,6 +199,7 @@ class DataAugmentationDataset(Dataset):
             for current_class_in_input in classes_in_input - {class_index}:
                 self.subtractSubMaskFromMainMask(target_masks, object_mask, current_class_in_input)
             classes_in_input.add(class_index)
+        input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
         objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
         return input_image, target_masks, objects_in_image, bounding_boxes

@@ -119,7 +119,7 @@ class ImageDistortions():
                                 for channel in cv2.split(image)]
         return min(contrast_channels)
 
-    def normalize_brightness(self, channel, brightness, lower_threshold, upper_threshold):
+    def normalizeBrightness(self, channel, brightness, lower_threshold, upper_threshold):
         mean_channel = np.mean(channel)
         if mean_channel + brightness  >= upper_threshold:
             brightness = math.fabs( (upper_threshold - mean_channel) / upper_threshold) * brightness
@@ -137,19 +137,23 @@ class ImageDistortions():
             brightness = random.uniform(-50, 50)
         else:
             brightness = random.uniform(-100, 100)
-        brightness_channels = [self.normalize_brightness(channel, brightness, lower_threshold=5, upper_threshold=250) \
+        brightness_channels = [self.normalizeBrightness(channel, brightness, lower_threshold=5, upper_threshold=250) \
                                 for channel in cv2.split(image)]
         return min(brightness_channels)
 
-    def applyContrastAndBrightness(self, image, original_image):
+    def applyContrastAndBrightness(self, image):
         channels = ImageInfo(image).channels
-        contrast = self.getContrastParameter(original_image)
-        brightness = self.getBrightnessParameter(original_image)
+        contrast = self.getContrastParameter(image)
+        brightness = self.getBrightnessParameter(image)
 
         contrasted_channels = [ cv2.multiply(image[:, :, channel_index], contrast) for channel_index in range(channels) ]
         image_brightened_channels = [ cv2.add(contrasted_channels[channel_index], brightness) for channel_index in range(channels) ]
 
         return cv2.merge(image_brightened_channels)
+
+    def changeContrastAndBrightnessToImage(self, image):
+        transformed_image_with_color_noise = self.applyContrastAndBrightness(image[:, :, 0:3])
+        return transformed_image_with_color_noise
 
     def distortImage(self, item_image):
         item_image_info = ImageInfo(item_image)
@@ -162,8 +166,7 @@ class ImageDistortions():
         transformed_image = cv2.warpPerspective( item_image, homography_matrix, (constants.input_width, constants.input_height) )
         if item_image_info.channels == 4:
             alpha_channel = transformed_image[:, :, 3]
-        transformed_image_with_color_noise = self.applyContrastAndBrightness(transformed_image[:, :, 0:3], item_image[:, :, 0:3])
         if item_image_info.channels == 4:
-            return self.image_utils.addAlphaChannelToImage(transformed_image_with_color_noise, alpha_channel)
+            return self.image_utils.addAlphaChannelToImage(transformed_image, alpha_channel)
         else:
-            return transformed_image_with_color_noise
+            return transformed_image
