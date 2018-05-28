@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from bauta.utils.ModelUtils import ModelUtils
-from bauta.model.MaskDetector import MaskDetector
+from bauta.model.MaskRefiner import MaskRefiner
 
 class MaskRefiners(nn.Module):
 
@@ -13,20 +13,20 @@ class MaskRefiners(nn.Module):
         self.classes = classes
         mask_refiners = []
         for mask_refiner_index in range(self.classes):
-            mask_refiners.append(MaskReiner())
+            mask_refiners.append(MaskRefiner())
         self.mask_refiners = nn.ModuleList(mask_refiners)
 
     def forward(self, embeddings):
         outputs = []
-        predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw = input
+        input_image_size, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = embeddings
         for class_index in range(self.classes):
             output = self.mask_refiners[class_index](\
                 [
                 input_image_size, 
-                predicted_masks_crop[:,class_index:class_index+1,:,:], 
-                embeddings_crop, 
-                embeddings_3_crop, 
-                embeddings_2_crop, 
-                embeddings_1_crop])
+                predicted_masks[:,class_index:class_index+1,:,:], 
+                embeddings_merged, 
+                embeddings_8, 
+                embeddings_4, 
+                embeddings_2])
             outputs.append(output)
         return torch.cat(outputs, 1)

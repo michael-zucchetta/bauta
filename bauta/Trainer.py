@@ -23,6 +23,7 @@ from bauta.utils.CudaUtils import CudaUtils
 from bauta.utils.SystemUtils import SystemUtils
 from bauta.utils.InferenceUtils import InferenceUtils
 from bauta.BoundingBox import BoundingBox
+from bauta.model.MaskRefiners import MaskRefiners
 
 class Trainer():
 
@@ -103,13 +104,35 @@ class Trainer():
     def loadModel(self):
         model = None
         if not self.reset_model:
-            model = self.environment.loadModel(self.environment.best_model_file)
-            #model = Model(len(self.config.classes), 32, 5, 15)
-            #model.backbone = old_model.backbone
-            #model.mask_detectors = old_model.mask_detectors
-        if self.reset_model or model is None:
-            # incase no model is stored or in case the user wants to reset it
+            old_model = self.environment.loadModel(self.environment.best_model_file)
             model = Model(len(self.config.classes), 32, 5, 15)
+            model.backbone = old_model.backbone
+            model.mask_detectors = old_model.mask_detectors
+            for mask_refiner in model.mask_refiners.mask_refiners:
+
+                mask_refiner.convolutional_16_reducer[0].weight.data = old_model.mask_refiner.convolutional_16_reducer[0].weight.data.clone()
+                mask_refiner.convolutional_16_reducer[0].bias.data = old_model.mask_refiner.convolutional_16_reducer[0].bias.data.clone()
+                mask_refiner.convolutional_16_reducer[1].weight.data = old_model.mask_refiner.convolutional_16_reducer[1].weight.data.clone()
+                mask_refiner.convolutional_16_reducer[1].bias.data = old_model.mask_refiner.convolutional_16_reducer[1].bias.data.clone()
+
+                mask_refiner.convolutional_8[0].weight.data = old_model.mask_refiner.convolutional_8[0].weight.data.clone()
+                mask_refiner.convolutional_8[0].bias.data = old_model.mask_refiner.convolutional_8[0].bias.data.clone()
+                mask_refiner.convolutional_8[1].weight.data = old_model.mask_refiner.convolutional_8[1].weight.data.clone()
+                mask_refiner.convolutional_8[1].bias.data = old_model.mask_refiner.convolutional_8[1].bias.data.clone()
+
+                mask_refiner.convolutional_4[0].weight.data = old_model.mask_refiner.convolutional_4[0].weight.data.clone()
+                mask_refiner.convolutional_4[0].bias.data = old_model.mask_refiner.convolutional_4[0].bias.data.clone()
+                mask_refiner.convolutional_4[1].weight.data = old_model.mask_refiner.convolutional_4[1].weight.data.clone()
+                mask_refiner.convolutional_4[1].bias.data = old_model.mask_refiner.convolutional_4[1].bias.data.clone()
+
+                #mask_refiner.convolutional_2[0].weight.data = old_model.mask_refiner.convolutional_2[0].weight.data.clone()
+                #mask_refiner.convolutional_2[0].bias.data = old_model.mask_refiner.convolutional_2[0].bias.data.clone()
+                #mask_refiner.convolutional_2[1].weight.data = old_model.mask_refiner.convolutional_2[1].weight.data.clone()
+                #mask_refiner.convolutional_2[1].bias.data = old_model.mask_refiner.convolutional_2[1].bias.data.clone()
+
+                #mask_refiner.convolutional_1.weight.data = old_model.mask_refiner.convolutional_1.weight.data.clone()
+                #mask_refiner.convolutional_1.bias.data = old_model.mask_refiner.convolutional_1.bias.data.clone()
+                
         self.log(model)
         return model
 
@@ -169,79 +192,13 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    def trainRefiner(self, input_images, predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw, target_mask, bounding_boxes):
-        cumulative_loss = None
-        count = 0 
-        for batch_index in range(bounding_boxes.size()[0]):
-            for object_index in range(bounding_boxes.size()[1]):
-                bounding_box = bounding_boxes[batch_index, object_index, :]
-                if(bounding_box[1:5].sum() > 1.0):
-                    class_index = int(bounding_box[0])
-                    left   = bounding_box[1]
-                    top    = bounding_box[2]
-                    right  = bounding_box[3]
-                    bottom = bounding_box[4]
-                    bounding_box_object     = BoundingBox(top, left, bottom, right)
-                    bounding_box_object_32  = bounding_box_object.resize(512, 512, 32, 32)
-                    bounding_box_object_64  = bounding_box_object.resize(512, 512, 64, 64)
-                    bounding_box_object_128 = bounding_box_object.resize(512, 512, 128, 128)
-                    bounding_box_object_256 = bounding_box_object.resize(512, 512, 256, 256)
-                    if bounding_box_object_32.area > 1:
-                        assert(predicted_masks.size()[2] == 32 and predicted_masks.size()[3] == 32)
-                        assert(embeddings.size()[2] == 32 and embeddings.size()[3] == 32)
-                        predicted_masks_crop = bounding_box_object_32.cropTensor(predicted_masks, batch_index)
-                        predicted_masks_crop = predicted_masks_crop[:, class_index:class_index + 1, :, :]
-                        embeddings_crop      = bounding_box_object_32.cropTensor(embeddings, batch_index)
-
-                        assert(embeddings_3_raw.size()[2] == 64 and embeddings_3_raw.size()[3] == 64)
-                        embeddings_3_crop    = bounding_box_object_64.cropTensor(embeddings_3_raw, batch_index)
-                        
-                        assert(embeddings_2_raw.size()[2] == 128 and embeddings_2_raw.size()[3] == 128)
-                        embeddings_2_crop    = bounding_box_object_128.cropTensor(embeddings_2_raw, batch_index)
-                        
-                        assert(embeddings_1_raw.size()[2] == 256 and embeddings_1_raw.size()[3] == 256)
-                        embeddings_1_crop    = bounding_box_object_256.cropTensor(embeddings_1_raw, batch_index)
-                        
-                        assert(target_mask.size()[2] == 512 and target_mask.size()[3] == 512)
-                        target_mask_crop     = bounding_box_object.cropTensor(target_mask, batch_index)
-                        target_mask_crop     = target_mask_crop[:, class_index:class_index + 1, :, :]
-
-                        assert(input_images.size()[2] == 512 and input_images.size()[3] == 512)
-                        input_images_crop    = bounding_box_object.cropTensor(input_images, batch_index)
-                        predicted_refined_mask = self.model.mask_refiner([input_images_crop.size(), predicted_masks_crop, embeddings_crop, embeddings_3_crop, embeddings_2_crop, embeddings_1_crop])
-                        if self.visual_logging:
-                            cv2.imshow(f'Embeddings "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Embeddings 3 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_3_raw[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Embeddings 2 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_2_raw[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Embeddings 1 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_1_raw[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings 3"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_3_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings 2"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_2_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings 1"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_1_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Mask "{self.config.classes[class_index]}".', self.image_utils.toNumpy(torch.nn.Upsample(size=(predicted_refined_mask.size()[2], predicted_refined_mask.size()[3]), mode='bilinear')(predicted_masks_crop).data.squeeze()))
-                            cv2.imshow(f'Crop Refiner Predicted Mask "{self.config.classes[class_index]}".', self.image_utils.toNumpy(predicted_refined_mask.data.squeeze()))
-                            cv2.imshow(f'Crop Refiner Target Mask "{self.config.classes[class_index]}".', self.image_utils.toNumpy(target_mask_crop.data.squeeze()))
-                            cv2.waitKey(0)
-                            cv2.destroyAllWindows()
-                        #self.logRefiner(refiner_input_image_cropped, target_mask, predicted_mask_cropped, predicted_refined_mask, class_index)
-                        loss = self.focalLoss(predicted_refined_mask, target_mask_crop)
-                        count = count + 1
-                        if cumulative_loss is None:
-                            cumulative_loss = loss
-                        else:
-                            cumulative_loss = cumulative_loss + loss 
-        if cumulative_loss is not None:
-            cumulative_loss = (cumulative_loss) / (16 * 16)
-        return cumulative_loss
-
     def computeLoss(self, input_images, target_mask, bounding_boxes):
         predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
         target_mask_scaled = nn.AvgPool2d(16)(target_mask)
         loss_mask = self.focalLoss(predicted_masks, target_mask_scaled)
-        loss_refiner = self.trainRefiner(input_images, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, target_mask, bounding_boxes)
-        total_loss = loss_mask
-        if loss_refiner is not None:
-            total_loss = total_loss + loss_refiner
+        predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])
+        loss_refiner = self.focalLoss(predicted_refined_mask, target_mask)
+        total_loss = loss_mask + loss_refiner
         return total_loss, loss_mask, loss_refiner
 
     def train(self):
