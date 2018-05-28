@@ -16,11 +16,11 @@ class MaskRefiner(nn.Module):
 
     def __init__(self):
         super(MaskRefiner, self).__init__()
-        self.convolutional_16_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(92, 15, 13, 1)
+        self.convolutional_16_reducer = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(92, 15, 13, 1)        
         self.convolutional_16_merger = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(16, 16, 13, 1)
-
         self.convolutional_8 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(32, 16, 13, 1)
         self.convolutional_4 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(24, 16, 13, 1)
+
         self.convolutional_2 = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(20, 1, 13, 1, False)
         ModelUtils.xavier(self.convolutional_2)
         #logits for initial output near 0.01, useful as most of targets are backgrounds
@@ -39,7 +39,7 @@ class MaskRefiner(nn.Module):
         embeddings = F.relu(self.convolutional_4(torch.cat([embeddings_upsampled, embeddings_2_crop], 1)))
         
         embeddings_upsampled = F.upsample(embeddings, size=(embeddings_1_crop.size()[2], embeddings_1_crop.size()[3]), mode='bilinear') # 1:2
-        embeddings = F.relu(self.convolutional_2(torch.cat([embeddings_upsampled, embeddings_1_crop], 1)))
+        embeddings = self.convolutional_2(torch.cat([embeddings_upsampled, embeddings_1_crop], 1))
         
         refined_mask = F.sigmoid(F.upsample(embeddings, size=(input_image_size[2], input_image_size[3]), mode='bilinear')) # 1:1
         return refined_mask
