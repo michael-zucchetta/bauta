@@ -53,13 +53,13 @@ class Inferencer():
             new_inference_results.append(inference_result)
         return new_inference_results
 
-    def refine(self, refiner_dataset, mask_refiner):
+    def refine(self, refiner_dataset, mask_refiners):
         inference_results = []
         for batch_index in refiner_dataset.keys():
             for class_index in refiner_dataset[batch_index].keys():
                 for connected_component in refiner_dataset[batch_index][class_index]:
                     embeddings = self.cuda_utils.cudify(connected_component['embeddings'], self.gpu)
-                    predicted_refined_mask = mask_refiner(embeddings)
+                    predicted_refined_mask = mask_refiners(embeddings)
                     if self.visual_logging:
                         cv2.imshow(f'Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask.squeeze().data))
                         cv2.waitKey(0)
@@ -87,6 +87,6 @@ class Inferencer():
         connected_components_predicted = self.inference_utils.extractConnectedComponents(predicted_masks)
         refiner_dataset = \
             self.inference_utils.cropRefinerDataset(connected_components_predicted, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, input_image)
-        inference_results = self.refine(refiner_dataset, model.mask_refiner)
+        inference_results = self.refine(refiner_dataset, model.mask_refiners)
         objects = self.extractObjects(inference_results)
         return objects

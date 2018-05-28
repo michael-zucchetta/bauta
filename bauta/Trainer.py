@@ -132,7 +132,8 @@ class Trainer():
 
                 #mask_refiner.convolutional_1.weight.data = old_model.mask_refiner.convolutional_1.weight.data.clone()
                 #mask_refiner.convolutional_1.bias.data = old_model.mask_refiner.convolutional_1.bias.data.clone()
-                
+        else:
+            model = Model(len(self.config.classes), 32, 5, 15)
         self.log(model)
         return model
 
