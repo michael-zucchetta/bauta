@@ -53,6 +53,7 @@ class Trainer():
             return 6
 
     def focalLoss(self, predicted_masks, target_mask, visual_logging=False):
+        #print(f'AAAA {predicted_masks.size()} vs {target_mask.size()}')
         foreground_probability = torch.mul(predicted_masks, target_mask)
         background_probability = torch.mul(predicted_masks - 1, target_mask - 1)
         probabilities = foreground_probability + background_probability
@@ -110,7 +111,7 @@ class Trainer():
             #model = Model(len(self.config.classes), 32, 5, 15)
             #model.backbone = old_model.backbone
             #model.mask_detectors = old_model.mask_detectors
-        if self.reset_model or model is None:
+        elif self.reset_model and model is None:
             # incase no model is stored or in case the user wants to reset it
             model = Model(len(self.config.classes), 32, 5, 15)
         self.log(model)
@@ -200,7 +201,7 @@ class Trainer():
                         target_mask = target_masks_batch[:, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
                         refiner_target_mask = refiner_target_masks_batch[:, class_index:class_index+1,bounding_box_object.top:bounding_box_object.bottom+1,bounding_box_object.left:bounding_box_object.right+1]
                         predicted_mask_cropped = predicted_masks[batch_index:batch_index+1, class_index:class_index+1,bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]
-                        predicted_refined_mask  = self.model.mask_refiners([refiner_input_image_cropped, embeddings_cropped, class_index, predicted_masks[batch_index:batch_index+1, class_index:class_index + 1, bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]])#predicted_mask_cropped])
+                        predicted_refined_mask  = self.model.mask_refiners([refiner_input_image_cropped, embeddings_cropped, class_index, predicted_masks[batch_index:batch_index+1, :, bounding_box_object_scaled.top:bounding_box_object_scaled.bottom+1,bounding_box_object_scaled.left:bounding_box_object_scaled.right+1]])#predicted_mask_cropped])
                         self.logRefiner(refiner_input_image_cropped, target_mask, predicted_mask_cropped, predicted_refined_mask, class_index)
                         self.refiner_optimizer.zero_grad()
                         loss = self.focalLoss(predicted_refined_mask, refiner_target_mask)
@@ -215,7 +216,7 @@ class Trainer():
 
     def train(self):
         self.model = self.cuda_utils.cudify([self.loadModel()], self.gpu)[0]
-        best_test_loss = self.testLoss()
+        best_test_loss = float(12313123123)#self.testLoss()
         self.log(f"Initial Test Loss {best_test_loss:{1}.{4}} ")
         optimizer = self.buildOptimizer()
         self.refiner_optimizer = self.buildRefinerOptimizer()
@@ -238,7 +239,7 @@ class Trainer():
                 optimizer.step()
                 loss_refiner = self.trainRefiner(predicted_masks, target_mask, embeddings, refiner_input_image, refiner_target_masks, bounding_boxes)
                 self.logLoss(loss.data[0], loss_refiner, epoch, train_dataset_index, dataset_train)
-                if (train_dataset_index + 1) % 500 == 0: 
+                if (train_dataset_index + 1) % 100 == 0: 
                     self.environment.saveModel(self.model, f"{(epoch + 1)}.backup")
                     best_test_loss = self.testAndSaveIfImproved(best_test_loss, loss + loss_refiner)
             self.environment.saveModel(self.model, f"{(epoch + 1)}.backup")
