@@ -21,15 +21,15 @@ class MaskRefiners(nn.Module):
     def forward(self, input):
         outputs = []
         # predicted_masks, embeddings, embeddings_1_raw, embeddings_2_raw, embeddings_3_raw = input
-        image, embeddings, class_index, predicted_masks = input
+        image, embeddings, class_index, predicted_mask = input
         #print(f'AAA {predicted_masks.size()}')
         #input_image_size = ImageInfo(input)
-        for class_index in range(self.classes):
-            output = self.mask_refiners[class_index](\
+        #for class_index in range(self.classes):
+        output = self.mask_refiners[class_index](\
                 [
                 image,
                 embeddings,
-                predicted_masks[:,class_index:class_index+1,:,:]
+                predicted_mask#[:,class_index:class_index+1,:,:]
                 ])
-            outputs.append(output)
+        outputs.append(output)
         return torch.cat(outputs, 1)

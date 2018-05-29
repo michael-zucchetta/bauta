@@ -29,7 +29,7 @@ class InferenceUtils():
                     bounding_box = predicted_connected_component['bounding_box']
                     cropped_embeddings = Variable(embeddings[batch_index:batch_index+1,:,bounding_box.top:bounding_box.bottom+1,bounding_box.left:bounding_box.right+1].data)
                     bounding_box_scaled = bounding_box.resize(embeddings.size()[3], embeddings.size()[2], refiner_input_image.size()[3], refiner_input_image.size()[2])
-                    croped_input_image = Variable(refiner_input_image[batch_index:batch_index+1,:,bounding_box_scaled.top:bounding_box_scaled.bottom+1,bounding_box_scaled.left:bounding_box_scaled.right+1])
+                    cropped_input_image = Variable(refiner_input_image[batch_index:batch_index+1,:,bounding_box_scaled.top:bounding_box_scaled.bottom+1,bounding_box_scaled.left:bounding_box_scaled.right+1])
                     if refiner_target_masks is not None:
                         cropped_refiner_target_masks = refiner_target_masks[batch_index:batch_index+1,class_index:class_index+1,bounding_box_scaled.top:bounding_box_scaled.bottom+1,bounding_box_scaled.left:bounding_box_scaled.right+1]
                         cropped_refiner_target_masks = Variable(cropped_refiner_target_masks)
@@ -41,10 +41,10 @@ class InferenceUtils():
                     if not class_index in connected_components[batch_index]:
                         connected_components[batch_index][class_index] = []
                     #cv2.imshow(f'mask {class_index}', image_utils.toNumpy(mask.data.squeeze(0)))
-                    #cv2.imshow(f'croped_input_image {class_index}', image_utils.toNumpy(croped_input_image.data.squeeze(0)))
+                    #cv2.imshow(f'cropped_input_image {class_index}', image_utils.toNumpy(cropped_input_image.data.squeeze(0)))
                     #cv2.waitKey(0)
                     object = { 'predicted_mask': mask,
-                        'input_image': croped_input_image,
+                        'input_image': cropped_input_image,
                         'target_mask': cropped_refiner_target_masks,
                         'embeddings': cropped_embeddings,
                         'bounding_box_scaled': bounding_box_scaled }
@@ -52,6 +52,7 @@ class InferenceUtils():
         return connected_components
 
     def extractConnectedComponentsInMask(mask):
+        print(f'MASK SUM {mask.sum}')
         if mask.sum() > 10.00:
             bounding_boxes, countour_areas = BoundingBox.fromOpenCVConnectedComponentsImage(mask, 25, 256)
             return bounding_boxes
@@ -70,7 +71,8 @@ class InferenceUtils():
                 mask = masks[batch_index][class_index]
                 mask = image_utils.toNumpy(mask.data)
                 maximum = mask.max()
-                if maximum > 0.60:
+
+                if maximum > 0.50:
                     mask = (mask * 255) / maximum
                     mask = mask.astype(np.uint8)
                     bounding_boxes = InferenceUtils.extractConnectedComponentsInMask(mask)

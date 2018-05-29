@@ -58,13 +58,15 @@ class Inferencer():
 
     def refine(self, refiner_dataset, model):
         inference_results = []
+        print(f'AAOEAKFAOFKAEOFKE {refiner_dataset.keys()}')
         for batch_index in refiner_dataset.keys():
             for class_index in refiner_dataset[batch_index].keys():
                 for connected_component in refiner_dataset[batch_index][class_index]:
-                    input_image, predicted_mask, embeddings= \
-                        self.cuda_utils.cudify([connected_component['input_image'], connected_component['predicted_mask'], connected_component['embeddings']], self.gpu)
+                    input_image, predicted_mask, embeddings, target_mask = \
+                        self.cuda_utils.cudify([connected_component['input_image'], connected_component['predicted_mask'], connected_component['embeddings'], connected_component['target_mask']], self.gpu)
                     #cv2.imshow(f'Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_mask.squeeze().data))
                     #cv2.waitKey(0)
+                    print(f'KKKK {type(predicted_mask)} {type(target_mask)} vs {predicted_mask.size()}')
                     predicted_refined_mask  = model.mask_refiners([input_image, embeddings, class_index, predicted_mask])
                     #cv2.imshow(f'Refined Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask.squeeze().data))
                     #cv2.waitKey(0)
@@ -78,13 +80,20 @@ class Inferencer():
 
     def inferenceOnImage(self, model, input_image):
         input_image, new_height, new_width = self.image_utils.paddingScale(input_image)
+        cv2.imshow('cane', input_image)
+        cv2.waitKey(0)
         input_image_preprocessed = Variable(DataAugmentationDataset.preprocessInputImage(input_image))
         input_image_preprocessed = self.cuda_utils.cudify([input_image_preprocessed.unsqueeze(0)], self.gpu)[0]
         print(input_image_preprocessed.size())
         predicted_masks, embeddings  = model.forward(input_image_preprocessed)
         connected_components_predicted = InferenceUtils.extractConnectedComponents(predicted_masks)
+        #print(f'OHI {predicted_masks.size()} {type(connected_components_predicted)} vs {connected_components_predicted}')
+        #cv2.imshow(f'CICCIO', self.image_utils.toNumpy(predicted_masks[:,0:1,:,:].squeeze().data) )
+        #cv2.imshow(f'CICCIO A', self.image_utils.toNumpy(predicted_masks[:,1:2,:,:].squeeze().data) )
+        #cv2.waitKey(0)
         refiner_dataset = \
             InferenceUtils.cropRefinerDataset(connected_components_predicted, embeddings, None, transforms.ToTensor()(input_image).unsqueeze(0))
+        print(f'GOLDON {refiner_dataset}')
         inference_results = self.refine(refiner_dataset, model)
         objects = self.extractObjects(inference_results)
         return objects
