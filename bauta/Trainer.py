@@ -90,8 +90,9 @@ class Trainer():
     def log(self, text):
         self.logger.info(f"{datetime.datetime.utcnow()} -- {text}")
 
-    def testAndSaveIfImproved(self, best_test_loss):
-        average_current_test_loss = self.testLoss()
+    def testAndSaveIfImproved(self, best_test_loss, total_loss):
+        average_current_test_loss = float(total_loss.mean())#self.testLoss()
+        print(f'AAAABBBB {type(average_current_test_loss)} vs {type(total_loss)} vs {type(best_test_loss)}')
         if average_current_test_loss < best_test_loss:
             self.log(f"Model Improved. Previous Best Test Loss {best_test_loss:{1}.{4}} | Current Best Test Loss  {average_current_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_test_loss - average_current_test_loss) / average_current_test_loss):{1}.{4}} %")
             best_test_loss = average_current_test_loss
@@ -237,6 +238,8 @@ class Trainer():
                 optimizer.step()
                 loss_refiner = self.trainRefiner(predicted_masks, target_mask, embeddings, refiner_input_image, refiner_target_masks, bounding_boxes)
                 self.logLoss(loss.data[0], loss_refiner, epoch, train_dataset_index, dataset_train)
-
+                if (train_dataset_index + 1) % 500 == 0: 
+                    self.environment.saveModel(self.model, f"{(epoch + 1)}.backup")
+                    best_test_loss = self.testAndSaveIfImproved(best_test_loss, loss + loss_refiner)
             self.environment.saveModel(self.model, f"{(epoch + 1)}.backup")
-            best_test_loss = self.testAndSaveIfImproved(best_test_loss)
+            best_test_loss = self.testAndSaveIfImproved(best_test_loss, loss + loss_refiner)

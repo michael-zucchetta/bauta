@@ -11,6 +11,7 @@ class MaskDetector(nn.Module):
         super(MaskDetector, self).__init__()
         self.dilations_count = 3
         self.dilation_blocks_count = 5
+        # self.initial_filter = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, filter_banks, filter_size, 1)
         self.initial_filter = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, filter_banks, filter_size, 1)
 
         dilation_blocks = []
@@ -28,7 +29,6 @@ class MaskDetector(nn.Module):
         self.bottlenecks = nn.ModuleList(bottlenecks)
 
         self.last_layer = nn.Conv2d(filter_banks, 1, 1)
-        ModelUtils.xavier(self.last_layer)
         ModelUtils.xavier(self.last_layer)
         self.last_layer.weight.data = self.last_layer.weight.data.abs() * -4.0 #logits for initial output near 0.01, useful as most of targets are backgrounds
 

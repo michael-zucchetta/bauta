@@ -10,6 +10,7 @@ import json
 from bauta.Constants import constants
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.SystemUtils import SystemUtils
+from bauta.utils.CudaUtils import CudaUtils 
 
 class EnvironmentUtils():
 
@@ -46,7 +47,12 @@ class EnvironmentUtils():
 
     def saveModel(self, mask_detector_model, name):
         path = os.path.join(self.models_path, name)
-        torch.save(mask_detector_model.float(), path)
+        model = mask_detector_model.cpu()
+        print(f'AAAAA {path} {type(model)}')
+        #cuda_utils = CudaUtils()
+        #model = cuda_utils.cudify(model, 1) 
+        torch.save(model, path)
+        model.cuda(1)
 
     def inputFilenamePath(self, index_path):
         index_filename_path = os.path.join(index_path, constants.dataset_input_filename)
