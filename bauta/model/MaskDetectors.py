@@ -17,8 +17,12 @@ class MaskDetectors(nn.Module):
         self.mask_detectors = nn.ModuleList(mask_detectors)
 
     def forward(self, embeddings):
-        outputs = []
+        masks = []
+        masks_embeddings = []
         for class_index in range(self.classes):
-            output = self.mask_detectors[class_index](embeddings)
-            outputs.append(output)
-        return torch.cat(outputs, 1)
+            mask, mask_embeddings = self.mask_detectors[class_index](embeddings)
+            masks.append(mask)
+            mask_embeddings = mask_embeddings.unsqueeze(1)
+            masks_embeddings.append(mask_embeddings)
+        masks_embeddings = torch.cat(masks_embeddings, 1)
+        return torch.cat(masks, 1), masks_embeddings

@@ -1,5 +1,3 @@
-import torchvision.models as models
-
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 import torch.nn as nn
@@ -14,27 +12,36 @@ from bauta.utils.ModelUtils import ModelUtils
 
 class Backbone(nn.Module):
 
-    def __init__(self, ):
+    def __init__(self):
         super(Backbone, self).__init__()
-        model = models.resnet18(pretrained=True)
-        model.eval()
-        self.conv1 = model.conv1
-        self.bn1 = model.bn1
-        self.maxpool = model.maxpool
-        self.layer1 = model.layer1
-        self.layer2 = model.layer2
-        self.layer3 = model.layer3
+        hidden_filter_banks = 64
+        filter_size = 7
+        self.dilation1_1_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(3, int(hidden_filter_banks / 16), filter_size, 1)
+        self.dilation1_2_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(int(hidden_filter_banks / 16), int(hidden_filter_banks / 8), filter_size, 1)
+        self.dilation1_3_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(int(hidden_filter_banks / 8), int(hidden_filter_banks / 4), filter_size, 1)
+        self.dilation1_4_encode  = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(int(hidden_filter_banks / 4), int(hidden_filter_banks), filter_size, 1)
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = F.relu(x)
-        x = self.maxpool(x)
-        x = self.layer1(x)
-        embeding_low = x
-        x = self.layer2(x)
-        embeding_mid = x
-        x = self.layer3(x)        
-        embeding_low = F.adaptive_max_pool2d(embeding_low, (x.size()[2], x.size()[3]))
-        embeding_mid = F.adaptive_max_pool2d(embeding_mid, (x.size()[2], x.size()[3]))
-        return torch.cat([x, embeding_low, embeding_mid], 1)
+
+    def mergedEmbeddings(self, embeddings_2, embeddings_4, embeddings_8, embeddings_16):
+        return  torch.cat([ \
+                    nn.AvgPool2d(8, 8)(embeddings_2),
+                    nn.AvgPool2d(4, 4)(embeddings_4), 
+                    nn.AvgPool2d(2, 2)(embeddings_8), 
+                    embeddings_16], 
+                1)
+
+    def forward(self, input):
+        input_scaled = nn.AvgPool2d(2, 2)(input)
+        embeddings_2 = F.relu(self.dilation1_1_encode(input_scaled))
+
+        embeddings_2_scaled = nn.AvgPool2d(2, 2)(embeddings_2)
+        embeddings_4 = F.relu(self.dilation1_2_encode(embeddings_2_scaled))
+
+        embeddings_4_scaled = nn.AvgPool2d(2, 2)(embeddings_4)
+        embeddings_8 = F.relu(self.dilation1_3_encode(embeddings_4_scaled))
+
+        embeddings_8_scaled = nn.AvgPool2d(2, 2)(embeddings_8)
+        embeddings_16 = F.relu(self.dilation1_4_encode(embeddings_8_scaled))
+
+        return  self.mergedEmbeddings(embeddings_2, embeddings_4, embeddings_8, embeddings_16), \
+            embeddings_2, embeddings_4, embeddings_8

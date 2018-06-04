@@ -204,30 +204,6 @@ class DataAugmentationDataset(Dataset):
         objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
         return input_image, target_masks, objects_in_image, bounding_boxes
 
-    def inputScale(image):
-        image_info = ImageInfo(image)
-        new_image = cv2.resize(image, (int((244 * image_info.height)/512), int((244 * image_info.width)/512)))
-        return new_image
-
-    def preprocessInputImage(image):
-        image = DataAugmentationDataset.inputScale(image)
-        normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        preprocess = transforms.Compose([
-                transforms.ToTensor(),
-                normalize
-            ])
-        return preprocess(image)
-
-    def preprocessMask(image):
-        image = DataAugmentationDataset.inputScale(image)
-        preprocess = transforms.Compose([
-                transforms.ToTensor()
-            ])
-        return preprocess(image)
-
     def isDataSampleConsistentWithDatasetConfiguration(self, input_image, target_masks, bounding_boxes):
         if input_image is not None and target_masks is not None and bounding_boxes is not None:
             if target_masks.shape[2] is len(self.config.classes):
@@ -259,8 +235,6 @@ class DataAugmentationDataset(Dataset):
                     index = index + 1
             if input_image is None or target_masks is None or objects_in_image is None:
                 raise ValueError(f'There is a major problem during data sampling loading images. Please check error messages above.')
-        refiner_input_image = transforms.ToTensor()(input_image)
-        refiner_target_masks = transforms.ToTensor()(target_masks)
-        input_image = DataAugmentationDataset.preprocessInputImage(input_image)
-        target_masks = DataAugmentationDataset.preprocessMask(target_masks)
-        return refiner_input_image, refiner_target_masks, input_image, target_masks, objects_in_image, bounding_boxes
+        input_image = transforms.ToTensor()(input_image)
+        target_masks = transforms.ToTensor()(target_masks)
+        return input_image, target_masks, objects_in_image, bounding_boxes

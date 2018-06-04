@@ -21,3 +21,7 @@ class ModelUtils():
     def xavier(convolution_layer):
         nn.init.xavier_uniform(convolution_layer.weight)
         convolution_layer.bias.data.zero_()
+
+    def zero(convolution_layer):
+        convolution_layer.weight.data.zero_()
+        convolution_layer.bias.data.zero_()

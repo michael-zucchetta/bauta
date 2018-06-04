@@ -9,9 +9,9 @@ class MaskDetector(nn.Module):
 
     def __init__(self, filter_banks, filter_size):
         super(MaskDetector, self).__init__()
-        self.dilations_count = 3
-        self.dilation_blocks_count = 5
-        self.initial_filter = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(448, filter_banks, filter_size, 1)
+        self.dilations_count = 4
+        self.dilation_blocks_count = 6
+        self.initial_filter = ModelUtils.createDilatedConvolutionPreservingSpatialDimensions(92, filter_banks, filter_size, 1)
 
         dilation_blocks = []
         bottlenecks = []
@@ -49,6 +49,6 @@ class MaskDetector(nn.Module):
 
     def forward(self, input):
         x = F.relu(self.initial_filter(input))
-        x = self.forwardDilations(x)
-        x = F.sigmoid(self.last_layer(x))
-        return x.squeeze(2).squeeze(2)
+        embeddings = self.forwardDilations(x)
+        x = F.sigmoid(self.last_layer(embeddings))
+        return x.squeeze(2).squeeze(2), embeddings
