@@ -195,9 +195,6 @@ class DataAugmentationDataset(Dataset):
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
-            # removes the current image from the existing masks that overlap it
-            for current_class_in_input in classes_in_input - {class_index}:
-                self.subtractSubMaskFromMainMask(target_masks, object_mask, current_class_in_input)
             classes_in_input.add(class_index)
         input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)

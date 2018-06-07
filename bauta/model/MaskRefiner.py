@@ -32,19 +32,19 @@ class MaskRefiner(nn.Module):
         embeddings_16 = F.relu(self.dilation1_1_decode(embeddings_16))
 
         embeddings_8 = torch.cat(\
-            [F.upsample(embeddings_16, size=(embeddings_8.size()[2], embeddings_8.size()[3]), mode='nearest'),
+            [F.upsample(embeddings_16, size=(embeddings_8.size()[2], embeddings_8.size()[3]), mode='bilinear'),
             embeddings_8.sum(1).unsqueeze(1)], 
             1)
         embeddings_8 = F.relu(self.dilation1_2_decode(embeddings_8))
 
         embeddings_4 = torch.cat([\
-            F.upsample(embeddings_8, size=(embeddings_4.size()[2], embeddings_4.size()[3]), mode='nearest'),
+            F.upsample(embeddings_8, size=(embeddings_4.size()[2], embeddings_4.size()[3]), mode='bilinear'),
             embeddings_4.sum(1).unsqueeze(1)],
             1)
         embeddings_4 = F.relu(self.dilation1_3_decode(embeddings_4))
 
         embeddings_2 = torch.cat([\
-            F.upsample(embeddings_4, size=(embeddings_2.size()[2], embeddings_2.size()[3]), mode='nearest'),\
+            F.upsample(embeddings_4, size=(embeddings_2.size()[2], embeddings_2.size()[3]), mode='bilinear'),\
             embeddings_2.sum(1).unsqueeze(1)], 1)
         mask = F.sigmoid(self.dilation1_4_decode(embeddings_2))
         return mask

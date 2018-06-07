@@ -53,19 +53,6 @@ class Trainer():
         else:
             return 6
 
-    def focalLoss(self, predicted_masks, target_mask, visual_logging=False):
-        foreground_probability = torch.mul(predicted_masks, target_mask)
-        background_probability = torch.mul(predicted_masks - 1, target_mask - 1)
-        probabilities = foreground_probability + background_probability
-        modulating_factor = Variable(((-probabilities) + 1.0).abs().data.clone(), requires_grad=False)
-        if visual_logging:
-            self.logBatch(target_mask, "target_mask")
-            self.logBatch(predicted_masks, "classes")
-            self.logBatch(-probabilities+1, "Loss")
-        log_likelyhood_loss = -torch.log(torch.clamp(probabilities, 0.001, 1.0))
-        focal_loss = torch.mul(log_likelyhood_loss, modulating_factor)
-        return focal_loss.mean()
-
     def testLoss(self):
         current_test_loss = None
         dataset_test = DataAugmentationDataset(False, self.data_path, self.visual_logging, self.test_samples)
@@ -177,15 +164,28 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+    def balancedLoss(self, predictions, targets):
+        positive = Variable(targets.data, requires_grad=False)
+        negative = Variable((1.0 - targets).data, requires_grad=False)
+        positive_accuracy = nn.L1Loss(size_average=False, reduce=False)(positive * predictions, positive * targets).sum() / positive.sum()
+        negative_accuracy = nn.L1Loss(size_average=False, reduce=False)(negative * predictions, negative * targets).sum() / negative.sum()
+        return (positive_accuracy + negative_accuracy) / 2.0
+
     def computeLoss(self, input_images, target_mask, bounding_boxes):
         predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
-        loss_mask = self.focalLoss(predicted_masks, nn.AvgPool2d(16)(target_mask))
+        self.logBatch(predicted_masks, "Predict")
+        target_mask_scaled_16 = (nn.AvgPool2d(16)(target_mask) > 0.5).float()
+        self.logBatch(target_mask_scaled_16, "Target")
+        loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16)
         classifier_predictions = self.model.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
-        loss_classifier = self.focalLoss(classifier_predictions, classifier_targets) * 0.1
+        loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.01
+        self.logBatch(mask_embeddings[:,0,:,:,:].squeeze(1), "Embed")
         predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
-        self.logBatch(predicted_refined_mask, "Predicted Masks")        
-        loss_refiner = self.focalLoss(predicted_refined_mask, nn.AvgPool2d(2)(target_mask))
+        self.logBatch(predicted_refined_mask, "Predict")
+        target_mask_scaled_2 = (nn.AvgPool2d(2)(target_mask) > 0.5).float()
+        self.logBatch(target_mask_scaled_2, "Target")
+        loss_refiner = self.balancedLoss(predicted_refined_mask, target_mask_scaled_2)
         total_loss = loss_mask + loss_refiner + loss_classifier
         return total_loss, loss_mask, loss_refiner, loss_classifier
 
