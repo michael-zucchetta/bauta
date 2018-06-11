@@ -129,11 +129,11 @@ class ImageDistortions():
 
     def getBrightnessParameter(self, image):
         brightness_probability = random.uniform(0, 1)
-        if brightness_probability < 0.7:
+        if brightness_probability < 0.75:
             brightness = random.uniform(-10, 10)
-        elif 0.7 <= brightness_probability < 0.85:
+        elif 0.75 <= brightness_probability < 0.90:
             brightness = random.uniform(-30, 30)
-        elif 0.85 <= brightness_probability <= 0.95:
+        elif 0.90 <= brightness_probability <= 0.95:
             brightness = random.uniform(-50, 50)
         else:
             brightness = random.uniform(-100, 100)

@@ -41,7 +41,7 @@ class DatasetConfiguration():
                 sys.stderr.write(f'Not enough images for class "{class_label}".')
                 sys.exit(-1)
         self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
-        self.max_classes_per_image = 2
+        self.max_classes_per_image = 1
         self.max_objects_per_class = 1
         self.max_background_objects_per_image = 2
         self.probability_using_cache = 0.95

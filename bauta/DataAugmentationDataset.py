@@ -77,18 +77,29 @@ class DataAugmentationDataset(Dataset):
         return image
 
     def randomBackground(self):
-        background_index = np.random.randint(len(self.config.objects[constants.background_label]), size=1)[0] % len(self.config.objects[constants.background_label])
-        background_image = cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR)
-        if background_image is not None and len(background_image.shape) == 3:
-            background = self.cutImageBackground(background_image)
-            background = self.coverInputDimensions(background)
-            background = self.applyRandomBackgroundObjects(background)
-            return background
+        use_flat_background = bool(random.getrandbits(1))
+        if use_flat_background:
+            background_image = np.ones( (constants.input_height, constants.input_width, 3), dtype=np.uint8) * 255
+            use_white_background = bool(random.getrandbits(1))
+            if not use_white_background:                
+                # defalut to random background
+                for channel in range(0, 3):
+                    random_channel_value = random.uniform(0, 256)
+                    background_image[:,:,channel] = random_channel_value
+            return background_image
         else:
-            if self.config.remove_corrupted_files:
-                self.logger.warning(f'Removing corrupted image {self.config.objects[constants.background_label][background_index]}')
-                self.system_utils.rm(self.config.objects[constants.background_label][background_index])
-            raise ValueError(f'Could not load background image {self.config.objects[constants.background_label][background_index]}')
+            background_index = np.random.randint(len(self.config.objects[constants.background_label]), size=1)[0] % len(self.config.objects[constants.background_label])
+            background_image = cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR)
+            if background_image is not None and len(background_image.shape) == 3:
+                background = self.cutImageBackground(background_image)
+                background = self.coverInputDimensions(background)
+                background = self.applyRandomBackgroundObjects(background)
+                return background
+            else:
+                if self.config.remove_corrupted_files:
+                    self.logger.warning(f'Removing corrupted image {self.config.objects[constants.background_label][background_index]}')
+                    self.system_utils.rm(self.config.objects[constants.background_label][background_index])
+                raise ValueError(f'Could not load background image {self.config.objects[constants.background_label][background_index]}')
 
     def imageWithinInputDimensions(self, image):
         image_info = ImageInfo(image)
@@ -193,10 +204,12 @@ class DataAugmentationDataset(Dataset):
             bounding_box = self.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
-            input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
+            input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)            
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
             classes_in_input.add(class_index)
-        input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
+        distort_full_image = bool(random.getrandbits(1))
+        if not distort_full_image:
+            input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
         objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
         return input_image, target_masks, objects_in_image, bounding_boxes

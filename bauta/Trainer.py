@@ -102,11 +102,6 @@ class Trainer():
         model = None
         if not self.reset_model:
             model = self.environment.loadModel(self.environment.best_model_file)
-            #model = Model(len(self.config.classes), 32, 5, 15)
-            #model.backbone = old_model.backbone
-            #model.mask_detectors = old_model.mask_detectors
-            #model.classifiers = old_model.classifiers
-            #model.mask_refiners = old_model.mask_refiners
         else:
             model = Model(len(self.config.classes), 32, 5, 15)                
         self.log(model)
@@ -165,11 +160,16 @@ class Trainer():
             cv2.destroyAllWindows()
 
     def balancedLoss(self, predictions, targets):
-        positive = Variable(targets.data, requires_grad=False)
-        negative = Variable((1.0 - targets).data, requires_grad=False)
-        positive_accuracy = nn.L1Loss(size_average=False, reduce=False)(positive * predictions, positive * targets).sum() / positive.sum()
-        negative_accuracy = nn.L1Loss(size_average=False, reduce=False)(negative * predictions, negative * targets).sum() / negative.sum()
-        return (positive_accuracy + negative_accuracy) / 2.0
+        foreground = Variable(targets.data, requires_grad=False)
+        background = Variable((1.0 - targets).data, requires_grad=False)
+        foreground_loss = nn.L1Loss(size_average=True, reduce=True)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10)
+        background_loss = nn.L1Loss(size_average=True, reduce=True)(background * predictions, background * targets).mean() / (background.mean() + 1e-10)
+        if self.visual_logging and len(targets.size()) == 4:
+            self.logBatch(foreground, "Tar.Fore.")
+            self.logBatch(nn.L1Loss(size_average=False, reduce=False)(foreground * predictions, foreground * targets), "Fore loss")
+            self.logBatch(background, "Tar.Back.")
+            self.logBatch(nn.L1Loss(size_average=False, reduce=False)(background * predictions, background * targets), "Back loss")
+        return (foreground_loss + background_loss) / 2.0
 
     def computeLoss(self, input_images, target_mask, bounding_boxes):
         predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
