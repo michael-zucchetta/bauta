@@ -46,8 +46,6 @@ class DatasetConfiguration():
         self.max_background_objects_per_image = 2
         self.probability_using_cache = 0.95
         self.probability_no_objects = 0.05
-        self.minimum_object_area_proportion_to_be_present = 0.05
-        self.minimum_object_area_proportion_uncovered_to_be_present = 0.4
         self.remove_corrupted_files = True
         if 'data_sampling' in self.config:
             data_sampling_config = self.config['data_sampling']
@@ -63,10 +61,7 @@ class DatasetConfiguration():
                 self.max_background_objects_per_image = data_sampling_config['max_background_objects_per_image']
             if 'probability_using_cache' in data_sampling_config:
                 self.probability_using_cache = float(data_sampling_config['probability_using_cache'])
-            if 'minimum_object_area_proportion_to_be_present' in data_sampling_config:
-                self.minimum_object_area_proportion_to_be_present = float(data_sampling_config['minimum_object_area_proportion_to_be_present'])
-            if 'minimum_object_area_proportion_uncovered_to_be_present' in data_sampling_config:
-                self.minimum_object_area_proportion_uncovered_to_be_present = float(data_sampling_config['minimum_object_area_proportion_uncovered_to_be_present'])
+
 
     def classIndexesExcludingBackground(self):
         return list(range(0, len(self.classes)))

@@ -166,18 +166,6 @@ class DataAugmentationDataset(Dataset):
         else:
             return background
 
-    def getObjectsInImage(self, target_masks, original_object_areas):
-        objects_in_image = self.environment.objectsInImage(self.config.classes)
-        for current_class_in_input in range(target_masks.shape[2]):
-            object_area = target_masks[:, :, current_class_in_input:current_class_in_input + 1].sum() / 255
-            if object_area > 0.0:
-                original_object_area = original_object_areas[current_class_in_input] / 255
-                if object_area / self.maximum_area > self.config.minimum_object_area_proportion_to_be_present \
-                 and original_object_area > self.config.minimum_object_area_proportion_to_be_present \
-                 and object_area / original_object_area > self.config.minimum_object_area_proportion_uncovered_to_be_present:
-                    objects_in_image[current_class_in_input] = 1.0
-        return objects_in_image
-
     def extractConnectedComponents(self, class_index, mask):
         connected_component = None
         image_utils = ImageUtils()
@@ -215,8 +203,7 @@ class DataAugmentationDataset(Dataset):
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
-        objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
-        return input_image, target_masks, objects_in_image, bounding_boxes
+        return input_image, target_masks, bounding_boxes
 
     def isDataSampleConsistentWithDatasetConfiguration(self, input_image, target_masks, bounding_boxes):
         if input_image is not None and target_masks is not None and bounding_boxes is not None:
@@ -228,12 +215,10 @@ class DataAugmentationDataset(Dataset):
         return False
 
     def __getitem__(self, index, max_attempts=10):
-        (input_image, target_masks, objects_in_image, bounding_boxes) = None, None, None, None
+        (input_image, target_masks, bounding_boxes) = None, None, None
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
                 input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
-                if input_image is not None and target_masks is not None and original_object_areas is not None:
-                    objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
         if not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes):
@@ -242,13 +227,13 @@ class DataAugmentationDataset(Dataset):
             current_attempt = 0
             while (not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes)) and current_attempt < max_attempts:
                 try:
-                    input_image, target_masks, objects_in_image, bounding_boxes = self.generateAugmentedImage(index)
+                    input_image, target_masks, bounding_boxes = self.generateAugmentedImage(index)
                 except BaseException as e:
                     sys.stderr.write(traceback.format_exc())
                     current_attempt = current_attempt + 1
                     index = index + 1
-            if input_image is None or target_masks is None or objects_in_image is None:
+            if input_image is None or target_masks is None:
                 raise ValueError(f'There is a major problem during data sampling loading images. Please check error messages above.')
         input_image = transforms.ToTensor()(input_image)
         target_masks = transforms.ToTensor()(target_masks)
-        return input_image, target_masks, objects_in_image, bounding_boxes
+        return input_image, target_masks, bounding_boxes

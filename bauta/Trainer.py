@@ -65,8 +65,8 @@ class Trainer():
         loss_refiner_average = 0.0
         loss_classifier_average = 0.0
         iterations = 0.0
-        for i, (input_images, target_mask, target_objects_in_image, bounding_boxes) in enumerate(test_loader):
-            input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
+        for i, (input_images, target_mask, bounding_boxes) in enumerate(test_loader):
+            input_images, target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask], self.gpu))
             if self.visual_logging:
                self.visualLoggingDataset(input_images, target_mask)
             total_loss, loss_mask, loss_refiner, loss_classifier =  self.computeLoss(input_images, target_mask, bounding_boxes)
@@ -201,9 +201,9 @@ class Trainer():
                                                        batch_size=self.batch_size,
                                                        shuffle=False,
                                                        num_workers=self.getWorkers())
-            for train_dataset_index, (input_images, target_mask, target_objects_in_image, bounding_boxes) in enumerate(train_loader):
+            for train_dataset_index, (input_images, target_mask, bounding_boxes) in enumerate(train_loader):
                 sys.stdout.flush()
-                input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
+                input_images, target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask], self.gpu))
                 self.visualLoggingDataset(input_images, target_mask)
                 optimizer.zero_grad()
                 total_loss, loss_mask, loss_refiner, loss_classifier =  self.computeLoss(input_images, target_mask, bounding_boxes)

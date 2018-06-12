@@ -105,7 +105,7 @@ class ImageDistortions():
             image = cv2.merge([ cv2.multiply(image[:, :, channel_index], contrast_parameter) for channel_index in range(channels)])
         distort = bool(random.getrandbits(1))
         if distort:
-            brightness = random.uniform(-int(np.mean(image) / 2.0), 255 - int(np.mean(image)))
+            brightness = random.uniform(-int(np.mean(image) / 2.0), int(np.mean(image) / 2.0))
             image = cv2.merge([ cv2.add(image[:, :, channel_index], brightness) for channel_index in range(channels) ])
         return image
 
