@@ -207,9 +207,13 @@ class DataAugmentationDataset(Dataset):
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)            
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
             classes_in_input.add(class_index)
-        distort_full_image = bool(random.getrandbits(1))
-        if not distort_full_image:
-            input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
+        if self.visual_logging:
+            cv2.imshow(f'Before Distortion', input_image)
+        input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
+        if self.visual_logging:
+            cv2.imshow(f'After Distortion', input_image)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
         objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
         return input_image, target_masks, objects_in_image, bounding_boxes
