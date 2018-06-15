@@ -97,59 +97,17 @@ class ImageDistortions():
         ]
         return np.matrix(perspective_matrix)
 
-    def normalize_contrast(self, channel, contrast, lower_threshold, upper_threshold):
-        mean_channel = np.mean(channel)
-        if mean_channel * contrast >= upper_threshold:
-            contrast = contrast * mean_channel / math.fabs(upper_threshold - mean_channel * contrast)
-        elif mean_channel * contrast <= lower_threshold:
-            contrast = contrast * mean_channel / math.fabs(mean_channel * contrast - lower_threshold)
-        return contrast
-
-    def getContrastParameter(self, image):
-        contrast_probability = random.uniform(0, 1)
-        if contrast_probability < 0.7:
-            contrast = random.uniform(-0.1, 0.1)
-        elif 0.7 <= contrast_probability < 0.95:
-            contrast = random.uniform(-0.3, 0.3)
-        else:
-            contrast = random.uniform(-0.5, 0.5)
-        # 1 is the unaltered, without contrast, image
-        contrast = 1 + contrast
-        contrast_channels = [self.normalize_contrast(channel, contrast, lower_threshold=5, upper_threshold=250) \
-                                for channel in cv2.split(image)]
-        return min(contrast_channels)
-
-    def normalizeBrightness(self, channel, brightness, lower_threshold, upper_threshold):
-        mean_channel = np.mean(channel)
-        if mean_channel + brightness  >= upper_threshold:
-            brightness = math.fabs( (upper_threshold - mean_channel) / upper_threshold) * brightness
-        elif mean_channel + brightness <= lower_threshold:
-            brightness = math.fabs( (mean_channel - lower_threshold) / lower_threshold) * brightness
-        return int(brightness)
-
-    def getBrightnessParameter(self, image):
-        brightness_probability = random.uniform(0, 1)
-        if brightness_probability < 0.7:
-            brightness = random.uniform(-10, 10)
-        elif 0.7 <= brightness_probability < 0.85:
-            brightness = random.uniform(-30, 30)
-        elif 0.85 <= brightness_probability <= 0.95:
-            brightness = random.uniform(-50, 50)
-        else:
-            brightness = random.uniform(-100, 100)
-        brightness_channels = [self.normalizeBrightness(channel, brightness, lower_threshold=5, upper_threshold=250) \
-                                for channel in cv2.split(image)]
-        return min(brightness_channels)
-
     def applyContrastAndBrightness(self, image):
         channels = ImageInfo(image).channels
-        contrast = self.getContrastParameter(image)
-        brightness = self.getBrightnessParameter(image)
-
-        contrasted_channels = [ cv2.multiply(image[:, :, channel_index], contrast) for channel_index in range(channels) ]
-        image_brightened_channels = [ cv2.add(contrasted_channels[channel_index], brightness) for channel_index in range(channels) ]
-
-        return cv2.merge(image_brightened_channels)
+        distort = bool(random.getrandbits(1))
+        if distort:
+            contrast_parameter = random.uniform(0.1, 2.0)
+            image = cv2.merge([ cv2.multiply(image[:, :, channel_index], contrast_parameter) for channel_index in range(channels)])
+        distort = bool(random.getrandbits(1))
+        if distort:
+            brightness = random.uniform(-int(np.mean(image) / 2.0), int(np.mean(image) / 2.0))
+            image = cv2.merge([ cv2.add(image[:, :, channel_index], brightness) for channel_index in range(channels) ])
+        return image
 
     def changeContrastAndBrightnessToImage(self, image):
         transformed_image_with_color_noise = self.applyContrastAndBrightness(image[:, :, 0:3])

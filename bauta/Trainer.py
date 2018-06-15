@@ -53,19 +53,6 @@ class Trainer():
         else:
             return 6
 
-    def focalLoss(self, predicted_masks, target_mask, visual_logging=False):
-        foreground_probability = torch.mul(predicted_masks, target_mask)
-        background_probability = torch.mul(predicted_masks - 1, target_mask - 1)
-        probabilities = foreground_probability + background_probability
-        modulating_factor = Variable(((-probabilities) + 1.0).abs().data.clone(), requires_grad=False)
-        if visual_logging:
-            self.logBatch(target_mask, "target_mask")
-            self.logBatch(predicted_masks, "classes")
-            self.logBatch(-probabilities+1, "Loss")
-        log_likelyhood_loss = -torch.log(torch.clamp(probabilities, 0.001, 1.0))
-        focal_loss = torch.mul(log_likelyhood_loss, modulating_factor)
-        return focal_loss.mean()
-
     def testLoss(self):
         current_test_loss = None
         dataset_test = DataAugmentationDataset(False, self.data_path, self.visual_logging, self.test_samples)
@@ -78,8 +65,8 @@ class Trainer():
         loss_refiner_average = 0.0
         loss_classifier_average = 0.0
         iterations = 0.0
-        for i, (input_images, target_mask, target_objects_in_image, bounding_boxes) in enumerate(test_loader):
-            input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
+        for i, (input_images, target_mask, bounding_boxes) in enumerate(test_loader):
+            input_images, target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask], self.gpu))
             if self.visual_logging:
                self.visualLoggingDataset(input_images, target_mask)
             total_loss, loss_mask, loss_refiner, loss_classifier =  self.computeLoss(input_images, target_mask, bounding_boxes)
@@ -115,11 +102,6 @@ class Trainer():
         model = None
         if not self.reset_model:
             model = self.environment.loadModel(self.environment.best_model_file)
-            #model = Model(len(self.config.classes), 32, 5, 15)
-            #model.backbone = old_model.backbone
-            #model.mask_detectors = old_model.mask_detectors
-            #model.classifiers = old_model.classifiers
-            #model.mask_refiners = old_model.mask_refiners
         else:
             model = Model(len(self.config.classes), 32, 5, 15)                
         self.log(model)
@@ -177,15 +159,33 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+    def balancedLoss(self, predictions, targets):
+        foreground = Variable(targets.data, requires_grad=False)
+        background = Variable((1.0 - targets).data, requires_grad=False)
+        foreground_loss = nn.L1Loss(size_average=True, reduce=False)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10)
+        background_loss = nn.L1Loss(size_average=True, reduce=False)(background * predictions, background * targets).mean() / (background.mean() + 1e-10)
+        if self.visual_logging and len(targets.size()) == 4:
+            self.logBatch(foreground, "Tar.Fore.")
+            self.logBatch(nn.L1Loss(size_average=False, reduce=False)(foreground * predictions, foreground * targets), "Fore loss")
+            self.logBatch(background, "Tar.Back.")
+            self.logBatch(nn.L1Loss(size_average=False, reduce=False)(background * predictions, background * targets), "Back loss")
+        return (foreground_loss + background_loss) / 2.0
+
     def computeLoss(self, input_images, target_mask, bounding_boxes):
         predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
-        loss_mask = self.focalLoss(predicted_masks, nn.AvgPool2d(16)(target_mask))
+        self.logBatch(predicted_masks, "Predict")
+        target_mask_scaled_16 = (nn.AvgPool2d(16)(target_mask) > 0.5).float()
+        self.logBatch(target_mask_scaled_16, "Target")
+        loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16) * 0.5
         classifier_predictions = self.model.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
-        loss_classifier = self.focalLoss(classifier_predictions, classifier_targets) * 0.1
+        loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.1
+        self.logBatch(mask_embeddings[:,0,:,:,:].squeeze(1), "Embed")
         predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
-        self.logBatch(predicted_refined_mask, "Predicted Masks")        
-        loss_refiner = self.focalLoss(predicted_refined_mask, nn.AvgPool2d(2)(target_mask))
+        self.logBatch(predicted_refined_mask, "Predict")
+        target_mask_scaled_2 = (nn.AvgPool2d(2)(target_mask) > 0.5).float()
+        self.logBatch(target_mask_scaled_2, "Target")
+        loss_refiner = self.balancedLoss(predicted_refined_mask, target_mask_scaled_2)
         total_loss = loss_mask + loss_refiner + loss_classifier
         return total_loss, loss_mask, loss_refiner, loss_classifier
 
@@ -201,9 +201,9 @@ class Trainer():
                                                        batch_size=self.batch_size,
                                                        shuffle=False,
                                                        num_workers=self.getWorkers())
-            for train_dataset_index, (input_images, target_mask, target_objects_in_image, bounding_boxes) in enumerate(train_loader):
+            for train_dataset_index, (input_images, target_mask, bounding_boxes) in enumerate(train_loader):
                 sys.stdout.flush()
-                input_images, target_mask, target_objects_in_image = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask, target_objects_in_image], self.gpu))
+                input_images, target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask], self.gpu))
                 self.visualLoggingDataset(input_images, target_mask)
                 optimizer.zero_grad()
                 total_loss, loss_mask, loss_refiner, loss_classifier =  self.computeLoss(input_images, target_mask, bounding_boxes)

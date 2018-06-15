@@ -88,7 +88,7 @@ class InferenceUtils():
                 mask = masks[batch_index][class_index]
                 mask = image_utils.toNumpy(mask.data)
                 if self.visual_logging:
-                    cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask, (mask.shape[1] * 16, mask.shape[0] * 16)) )
+                    cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask, (mask.shape[1], mask.shape[0])) )
                     cv2.waitKey(0)
                 maximum = mask.max()
                 if maximum > self.max_threshold:
@@ -100,7 +100,7 @@ class InferenceUtils():
                             mask_cropped = mask[bounding_box.top:bounding_box.bottom+1,bounding_box.left:bounding_box.right+1]
                             mask_density = (mask_cropped * maximum).mean()
                             if self.visual_logging:
-                                cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask_cropped, (mask_cropped.shape[1] * 16, mask_cropped.shape[0] * 16)) )
+                                cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask_cropped, (mask_cropped.shape[1], mask_cropped.shape[0])) )
                                 cv2.waitKey(0)
                             if mask_density > self.density_threshold:
                                 if (bounding_box.area / mask_area) >= self.area_thresold:
