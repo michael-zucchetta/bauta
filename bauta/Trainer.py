@@ -176,7 +176,7 @@ class Trainer():
         self.logBatch(predicted_masks, "Predict")
         target_mask_scaled_16 = (nn.AvgPool2d(16)(target_mask) > 0.5).float()
         self.logBatch(target_mask_scaled_16, "Target")
-        loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16)
+        loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16) * 0.5
         classifier_predictions = self.model.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
         loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.1

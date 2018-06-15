@@ -63,6 +63,7 @@ class ImageDistortions():
         percentage_out_of_image = 0.2
         base_x_translation = ( (1 - cos_angle ) * original_width / 2 ) - ( sin_angle       * original_height / 2 ) + ( image_width / 2 - original_width / 2 )
         base_y_translation = ( sin_angle       *  original_width / 2 ) + ( (1 - cos_angle) * original_height / 2 ) + ( image_height / 2 - original_height / 2 )
+        print(percentage_out_of_image, image_width, constants.input_width, scale_x, image_width, percentage_out_of_image)
         random_x_translation = random.uniform(-percentage_out_of_image * image_width, constants.input_width / scale_x - ( (image_width * (1 - percentage_out_of_image))  ) )
         random_y_translation = random.uniform(-percentage_out_of_image * image_height, constants.input_height / scale_y - ( (image_height * (1 - percentage_out_of_image)) ) )
         rotation_matrix = np.array([

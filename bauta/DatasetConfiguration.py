@@ -29,10 +29,9 @@ class DatasetConfiguration():
             sys.exit("Error loading dataset")
         self.objects = {}
         self.classes = self.config['classes']
-        if 'background_classes' in self.config:
+        self.background_classes = []
+        if 'background_classes' in self.config and self.config['background_classes'] is not None:
             self.background_classes = self.config['background_classes']
-        else:
-            self.noise_classes = []
         for class_label in set(self.classes) | set(self.background_classes) | {constants.background_label}:
             class_path = os.path.join(self.objects_path, class_label)
             self.objects[class_label] = [os.path.join(class_path, image_file) for image_file in system_utils.imagesInFolder(class_path)]
