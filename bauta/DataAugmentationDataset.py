@@ -77,18 +77,29 @@ class DataAugmentationDataset(Dataset):
         return image
 
     def randomBackground(self):
-        background_index = np.random.randint(len(self.config.objects[constants.background_label]), size=1)[0] % len(self.config.objects[constants.background_label])
-        background_image = cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR)
-        if background_image is not None and len(background_image.shape) == 3:
-            background = self.cutImageBackground(background_image)
-            background = self.coverInputDimensions(background)
-            background = self.applyRandomBackgroundObjects(background)
-            return background
+        use_flat_background = bool(random.getrandbits(1))
+        if use_flat_background:
+            background_image = np.ones( (constants.input_height, constants.input_width, 3), dtype=np.uint8) * 255
+            use_white_background = bool(random.getrandbits(1))
+            if not use_white_background:                
+                # defalut to random background
+                for channel in range(0, 3):
+                    random_channel_value = random.uniform(0, 256)
+                    background_image[:,:,channel] = random_channel_value
+            return background_image
         else:
-            if self.config.remove_corrupted_files:
-                self.logger.warning(f'Removing corrupted image {self.config.objects[constants.background_label][background_index]}')
-                self.system_utils.rm(self.config.objects[constants.background_label][background_index])
-            raise ValueError(f'Could not load background image {self.config.objects[constants.background_label][background_index]}')
+            background_index = np.random.randint(len(self.config.objects[constants.background_label]), size=1)[0] % len(self.config.objects[constants.background_label])
+            background_image = cv2.imread(self.config.objects[constants.background_label][background_index], cv2.IMREAD_COLOR)
+            if background_image is not None and len(background_image.shape) == 3:
+                background = self.cutImageBackground(background_image)
+                background = self.coverInputDimensions(background)
+                background = self.applyRandomBackgroundObjects(background)
+                return background
+            else:
+                if self.config.remove_corrupted_files:
+                    self.logger.warning(f'Removing corrupted image {self.config.objects[constants.background_label][background_index]}')
+                    self.system_utils.rm(self.config.objects[constants.background_label][background_index])
+                raise ValueError(f'Could not load background image {self.config.objects[constants.background_label][background_index]}')
 
     def imageWithinInputDimensions(self, image):
         image_info = ImageInfo(image)
@@ -155,18 +166,6 @@ class DataAugmentationDataset(Dataset):
         else:
             return background
 
-    def getObjectsInImage(self, target_masks, original_object_areas):
-        objects_in_image = self.environment.objectsInImage(self.config.classes)
-        for current_class_in_input in range(target_masks.shape[2]):
-            object_area = target_masks[:, :, current_class_in_input:current_class_in_input + 1].sum() / 255
-            if object_area > 0.0:
-                original_object_area = original_object_areas[current_class_in_input] / 255
-                if object_area / self.maximum_area > self.config.minimum_object_area_proportion_to_be_present \
-                 and original_object_area > self.config.minimum_object_area_proportion_to_be_present \
-                 and object_area / original_object_area > self.config.minimum_object_area_proportion_uncovered_to_be_present:
-                    objects_in_image[current_class_in_input] = 1.0
-        return objects_in_image
-
     def extractConnectedComponents(self, class_index, mask):
         connected_component = None
         image_utils = ImageUtils()
@@ -193,16 +192,18 @@ class DataAugmentationDataset(Dataset):
             bounding_box = self.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
-            input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
+            input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)            
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
-            # removes the current image from the existing masks that overlap it
-            for current_class_in_input in classes_in_input - {class_index}:
-                self.subtractSubMaskFromMainMask(target_masks, object_mask, current_class_in_input)
             classes_in_input.add(class_index)
+        if self.visual_logging:
+            cv2.imshow(f'Before Distortion', input_image)
         input_image = self.image_distortions.changeContrastAndBrightnessToImage(input_image)
+        if self.visual_logging:
+            cv2.imshow(f'After Distortion', input_image)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
-        objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
-        return input_image, target_masks, objects_in_image, bounding_boxes
+        return input_image, target_masks, bounding_boxes
 
     def isDataSampleConsistentWithDatasetConfiguration(self, input_image, target_masks, bounding_boxes):
         if input_image is not None and target_masks is not None and bounding_boxes is not None:
@@ -214,12 +215,10 @@ class DataAugmentationDataset(Dataset):
         return False
 
     def __getitem__(self, index, max_attempts=10):
-        (input_image, target_masks, objects_in_image, bounding_boxes) = None, None, None, None
+        (input_image, target_masks, bounding_boxes) = None, None, None
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
                 input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
-                if input_image is not None and target_masks is not None and original_object_areas is not None:
-                    objects_in_image = self.getObjectsInImage(target_masks, original_object_areas)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
         if not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes):
@@ -228,13 +227,13 @@ class DataAugmentationDataset(Dataset):
             current_attempt = 0
             while (not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes)) and current_attempt < max_attempts:
                 try:
-                    input_image, target_masks, objects_in_image, bounding_boxes = self.generateAugmentedImage(index)
+                    input_image, target_masks, bounding_boxes = self.generateAugmentedImage(index)
                 except BaseException as e:
                     sys.stderr.write(traceback.format_exc())
                     current_attempt = current_attempt + 1
                     index = index + 1
-            if input_image is None or target_masks is None or objects_in_image is None:
+            if input_image is None or target_masks is None:
                 raise ValueError(f'There is a major problem during data sampling loading images. Please check error messages above.')
         input_image = transforms.ToTensor()(input_image)
         target_masks = transforms.ToTensor()(target_masks)
-        return input_image, target_masks, objects_in_image, bounding_boxes
+        return input_image, target_masks, bounding_boxes

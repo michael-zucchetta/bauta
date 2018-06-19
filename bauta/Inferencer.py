@@ -83,15 +83,15 @@ class Inferencer():
             cv2.waitKey(0)
         input_image = Variable(transforms.ToTensor()(input_image))
         input_image = self.cuda_utils.cudify([input_image.unsqueeze(0)], self.gpu)[0]
-        predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
-        predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
-        predicted_refined_mask = model.mask_refiners([input_image.size(), predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])
-        for class_index in range(predicted_masks.size()[1]):
-            cv2.imshow(f'Refined Mask {class_index}', self.image_utils.toNumpy(predicted_refined_mask[0,class_index,:,:].data))
-        cv2.waitKey(0)
-        #connected_components_predicted = self.inference_utils.extractConnectedComponents(predicted_masks)
+        predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
+        predicted_refined_mask = model.mask_refiners([input_image.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])     
+        if self.visual_logging:   
+            for class_index in range(predicted_masks.size()[1]):
+                cv2.imshow(f'Refined Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_mask[0,class_index,:,:].data))
+            cv2.waitKey(0)
+        connected_components_predicted = self.inference_utils.extractConnectedComponents(predicted_refined_mask)
         #refiner_dataset = \
         #    self.inference_utils.cropRefinerDataset(connected_components_predicted, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, input_image)
-        inference_results = self.refine(refiner_dataset, model.mask_refiners)
+        #inference_results = self.refine(refiner_dataset, model.mask_refiners)
         objects = self.extractObjects(inference_results)
         return objects

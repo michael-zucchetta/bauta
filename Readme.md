@@ -149,11 +149,9 @@ All the other classes are expected to be `png`s with an alpha channel or a `jpg`
 ## Foundations
 
 `Bauta` is based on a Deep Neural network that implements a mixture of state-of-the-art research for image segmentation together with custom modifications:
-* Fisher Yu, Vladlen Koltun (2016). [Multi-Scale Context aggregation by dilated convolutions](https://arxiv.org/pdf/1511.07122.pdf).
+* Fisher Yu, Vladlen Koltun (2016). [Multi-Scale Context aggregation by dilated convolutions](https://arxiv.org/pdf/1511.07122.pdf)
 
-* Lin, Tsung-Yi & Goyal, Priya & Girshick, Ross & He, Kaiming & Dollár, Piotr. (2017). [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002)
-
-* He, Kaiming & Zhang, Xiangyu & Ren, Shaoqing & Sun, Jian. (2015). [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) and the Facebook implementation [ResNet training in Torch](https://github.com/facebook/fb.resnet.torch)
+* He, Kaiming & Zhang, Xiangyu & Ren, Shaoqing & Sun, Jian. (2015). [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385)
 
 These papers have served as a base for `bauta` but with the following important differences:
  - Instead of upsampling embeddings in the backbone, the

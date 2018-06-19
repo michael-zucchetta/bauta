@@ -19,6 +19,8 @@ class DatasetGenerator():
         socket.setdefaulttimeout(10)
         self.data_path = data_path
         self.system = SystemUtils()
+        if not os.path.exists(data_path):
+            os.makedirs(data_path) 
         self.environment = EnvironmentUtils(self.data_path)
         self.logger = self.system.getLogger(self)
 
@@ -46,7 +48,7 @@ class DatasetGenerator():
             if not os.path.isdir(images_path):
                 self.logger.error(f'"{images_path}" is not an existing directory')
                 return None
-            class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path)]
+            class_names = [os.path.splitext(file_in_path)[0] for file_in_path in os.listdir(images_path) if os.path.isfile(os.path.join(images_path, file_in_path)) and os.path.splitext(file_in_path)[0] != 'config' ]
             for background_class in background_classes:
                 if not background_class in class_names:
                     self.logger.error(f'Specified noise class {background_class} is not in the directory {images_path}')

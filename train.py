@@ -8,7 +8,7 @@ import os
 @click.option('--visual_logging', default=False, help='Display additional logging using images (only using desktop). Do not use it in a server, it requires a desktop environment.')
 @click.option('--reset_model', default=False, help='Reset model (start from scratch).')
 @click.option('--num_epochs', default=10000, help='Number of epochs.')
-@click.option('--batch_size', default=16, help='Batch size.')
+@click.option('--batch_size', default=8, help='Batch size.')
 @click.option('--learning_rate', default=0.0001, help='Learning rate')
 @click.option('--momentum', default=0.9, help='Momentum')
 @click.option('--gpu', default=0, help='GPU index')
