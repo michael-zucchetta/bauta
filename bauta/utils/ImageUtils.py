@@ -80,12 +80,16 @@ class ImageUtils():
             new_height = input_height
             new_width  = int(input_height * image_info.aspect_ratio)
             input_image_scaled = cv2.resize(input_image, (new_width, new_height))
-            return input_image_scaled, new_height, new_width
         else:
             new_width = input_width
-            new_height = int(input_width * image_info.aspect_ratio)
+            new_height = int(input_width / image_info.aspect_ratio)
             input_image_scaled = cv2.resize(input_image, (new_width, new_height))
-            return input_image_scaled, new_height, new_width
+        new_image = self.blankImage(input_height, input_width, image_info.channels)
+        if image_info.channels != 4:
+            input_image_scaled = self.addAlphaChannelToImage(input_image_scaled)
+        input_image_scaled, _ = self.pasteRGBAimageIntoRGBimage(input_image_scaled, new_image, \
+                int( ( input_width - new_width ) / 2 ), int( (input_height - new_height) / 2 ), True)
+        return input_image_scaled, new_height, new_width
 
     def blankImage(self, width, height, channels=None):
         if channels is not None:

@@ -46,7 +46,7 @@ class BasicBackgroundRemover():
         for color_border in color_borders:
             result = cv2.subtract( result, cv2.inRange(image, cv2.subtract(color_border, 2), cv2.add(color_border, 1) ))
         result = cv2.GaussianBlur(result, (5, 5), 3)
-        result = cv2.erode(result, None, iterations=2)
+        result = cv2.erode(result, None, iterations=1)
         result = cv2.morphologyEx(result, cv2.MORPH_OPEN, None, iterations=3)
         areas_and_contours = self.findContours(result)
         cv2.drawContours(result, [areas_and_contours[0][1]], -1, (255), -1)
@@ -107,7 +107,7 @@ class BasicBackgroundRemover():
         cv2.fillPoly(mask, [biggest_contour], 255)
         if full_computation and len(contours) > 1:
             self.removeBackgroundInsideMainObject(blurred_image, contours, mask)
-        mask = cv2.erode(mask, None, iterations=3)
+        mask = cv2.erode(mask, None, iterations=2)
         b, g, r = cv2.split(image)
         rgba = [b, g, r, mask]
         rgba = cv2.merge(rgba, 4)

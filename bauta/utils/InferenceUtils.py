@@ -27,44 +27,21 @@ class InferenceUtils():
         self.visual_logging = visual_logging
         self.image_utils = ImageUtils()
 
-    def cropRefinerDataset(self, connected_components_predicted, predicted_masks, embeddings_merged, embeddings_2, embeddings_4, embeddings_8, input_image):
+    def cropRefinerDataset(self, connected_components_predicted, predicted_masks, input_image):
         image_utils = ImageUtils()
         connected_components = {}
         for batch_index in connected_components_predicted.keys():
             for class_index in connected_components_predicted[batch_index].keys():
                 for predicted_connected_component in connected_components_predicted[batch_index][class_index]:
                     mask = predicted_connected_component['mask']
-                    bounding_box_object_16 = predicted_connected_component['bounding_box']
-                    bounding_box_object_8 = bounding_box_object_16.resize(predicted_masks.size()[3], predicted_masks.size()[2], embeddings_8.size()[3], embeddings_8.size()[2])
-                    bounding_box_object_4 = bounding_box_object_16.resize(predicted_masks.size()[3], predicted_masks.size()[2], embeddings_4.size()[3], embeddings_4.size()[2])
-                    bounding_box_object_2 = bounding_box_object_16.resize(predicted_masks.size()[3], predicted_masks.size()[2], embeddings_2.size()[3], embeddings_2.size()[2])
-                    bounding_box_object_1 = bounding_box_object_16.resize(predicted_masks.size()[3], predicted_masks.size()[2], input_image.size()[3], input_image.size()[2])
-                    if bounding_box_object_16.area > 1:
-                        predicted_masks_crop = bounding_box_object_16.cropTensor(predicted_masks, batch_index)
-                        predicted_masks_crop = predicted_masks_crop[:, class_index:class_index + 1, :, :]
-                        embeddings_crop      = bounding_box_object_16.cropTensor(embeddings_merged, batch_index)
-                        embeddings_8_crop    = bounding_box_object_8.cropTensor(embeddings_8, batch_index)                    
-                        embeddings_4_crop    = bounding_box_object_4.cropTensor(embeddings_4, batch_index)                        
-                        embeddings_2_crop    = bounding_box_object_2.cropTensor(embeddings_2, batch_index)
-                        input_image_crop     = bounding_box_object_1.cropTensor(input_image, batch_index)   
-                        if self.visual_logging:
-                            cv2.imshow(f'Embeddings "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_merged[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Embeddings 3 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_8[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Embeddings 2 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_4[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Embeddings 1 "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_2[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings "{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings 3"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_8_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings 2"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_4_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.imshow(f'Crop Embeddings 1"{self.config.classes[class_index]}".', self.image_utils.toNumpy(embeddings_2_crop[:,0:1,:,:].data.squeeze(0).squeeze(0)))
-                            cv2.waitKey(0)
-                            cv2.destroyAllWindows()
+                    bounding_box_object = predicted_connected_component['bounding_box']
+                    bounding_box_object_1 = bounding_box_object.resize(predicted_masks.size()[3], predicted_masks.size()[2], input_image.size()[3], input_image.size()[2])
+                    if bounding_box_object.area > 1:
                         if not batch_index in connected_components:
                             connected_components[batch_index] = {}
                         if not class_index in connected_components[batch_index]:
                             connected_components[batch_index][class_index] = []
-                        object = { 'predicted_mask': predicted_masks_crop,
-                            'input_image': input_image_crop,
-                            'embeddings': [input_image_crop.size(), predicted_masks_crop, embeddings_crop, embeddings_8_crop, embeddings_4_crop, embeddings_2_crop],
+                        object = { 'predicted_mask': predicted_masks[:, class_index:class_index+1, :, :],
                             'bounding_box': bounding_box_object_1 }
                         connected_components[batch_index][class_index].append(object)
         return connected_components
@@ -108,6 +85,13 @@ class InferenceUtils():
                                         connected_components[batch_index] = {}
                                     if not class_index in connected_components[batch_index]:
                                         connected_components[batch_index][class_index] = []
-                                    object = { 'mask': mask_cropped, 'bounding_box' : bounding_box }
-                                    connected_components[batch_index][class_index].append(object)
+                                    unique_bounding_box = True
+                                    for connected_component_in_class in connected_components[batch_index][class_index]:
+                                        previous_bounding_box = connected_component_in_class['bounding_box']
+                                        if previous_bounding_box.areBoundsAproximatelySimilar(bounding_box):
+                                            unique_bounding_box = False
+                                            break
+                                    if unique_bounding_box:
+                                        object = { 'mask': mask_cropped, 'bounding_box' : bounding_box }
+                                        connected_components[batch_index][class_index].append(object)
         return connected_components
