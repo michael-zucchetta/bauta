@@ -72,13 +72,14 @@ class Inferencer():
         input_image = Variable(transforms.ToTensor()(input_image))
         input_image = self.cuda_utils.cudify([input_image.unsqueeze(0)], self.gpu)[0]
         original_input_image = Variable(transforms.ToTensor()(original_input_image)) 
-        predicted_masks, masks_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
-        predicted_refined_masks = model.mask_refiners([input_image.size(), predicted_masks, masks_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])
+        predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = model.forward(input_image)
+        classifier_predictions = model.classifiers([predicted_masks, embeddings_merged])
+        predicted_refined_masks = model.mask_refiners([input_image.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
         if self.visual_logging:   
             for class_index in range(predicted_masks.size()[1]):
                  cv2.imshow(f'Refined Mask {self.config.classes[class_index]}', self.image_utils.toNumpy(predicted_refined_masks[0,class_index,:,:].data))
             cv2.waitKey(0)
-        connected_components_predicted = self.inference_utils.extractConnectedComponents(predicted_refined_masks)
+        connected_components_predicted = self.inference_utils.extractConnectedComponents(classifier_predictions, predicted_refined_masks)
         refiner_dataset = \
                 self.inference_utils.cropRefinerDataset(connected_components_predicted, predicted_refined_masks, input_image)
         inference_results = self.refine(refiner_dataset, model.mask_refiners, original_input_image)
