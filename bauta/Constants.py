@@ -19,8 +19,8 @@ class Constants():
         self.dataset_mask_prefix = r'_mask_'
         self.dataset_mask_prefix_regex = r'' + self.dataset_mask_prefix + '.+\.png$'
         self.max_image_retrieval_attempts = 2
-        self.bounding_boxes_filename = 'bounding_boxes.json'        
-
+        self.bounding_boxes_filename = 'bounding_boxes.json'
+        
     def datasetType(self, is_train):
         if is_train:
             return self.train_type

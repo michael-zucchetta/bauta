@@ -30,12 +30,9 @@ class Inference():
 
     def inferenceOnFile(self, full_image_path):
         input_image = cv2.imread(full_image_path)
-        image_info = ImageInfo(input_image)
-        if image_info.channels == 3:
-            if input_image is None:
-                sys.stderr.write(f"Error reading image\n")
-                sys.exit(-1)
-            else:
+        if input_image is not None:
+            image_info = ImageInfo(input_image)
+            if image_info.channels == 3:
                 if self.visual_logging:
                     cv2.imshow(f'input_image', input_image)
                 objects = self.inferencer.inferenceOnImage(self.model, input_image)
@@ -43,6 +40,9 @@ class Inference():
                 if self.visual_logging:
                     cv2.waitKey(0)
                     cv2.destroyAllWindows()
+        else:
+            sys.stderr.write(f"Error reading image in path {full_image_path}\n")
+            sys.exit(-1)
 
     def inference(self, path):
         if self.is_folder:
@@ -68,14 +68,12 @@ class Inference():
 @click.option('--data_path', default=f'{os.getcwd()}', help='Data path.')
 @click.option('--path', default="", help='Path to the folder or image that contain input image(s).')
 @click.option('--result_folder', default="~", help='File where segmented images are stored.')
-@click.option('--max_threshold', default=0.4, help='Probability that at least one activation will have to reach in order to consider the object to be in the mask.')
-@click.option('--density_threshold', default=20, help='Minimum mean of the overall mask normalized to the mask maximum so that an object is considrered in the image.')
-@click.option('--area_thresold', default=0.05, help='Minimum percentage of the area inside the image that the object has to occupy so that an object is considered in the mask')
+@click.option('--threshold', default=0.1, help='Minimum probability in the classifier so that the object is assumed to be present on the image.')
 @click.option('--visual_logging', default=False, help='Diplay in a window the intermediate and final inference results.')
 @click.option('--gpu', default=0, help='GPU index')
-def inference(data_path, path, result_folder, max_threshold, density_threshold, area_thresold, visual_logging, gpu):
+def inference(data_path, path, result_folder, threshold, visual_logging, gpu):
     config = DatasetConfiguration(False, data_path)
-    inference_utils = InferenceUtils(max_threshold, density_threshold, area_thresold, config, visual_logging)
+    inference_utils = InferenceUtils(threshold, config, visual_logging)
     inferencer = Inferencer(inference_utils, config, visual_logging, gpu)
     inference = Inference(data_path, path, inferencer, result_folder, visual_logging, gpu)
     inference.inference(path)

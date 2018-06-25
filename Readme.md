@@ -158,5 +158,4 @@ These papers have served as a base for `bauta` but with the following important 
 embeddings are downsampled to the smallest spatial dimensions of the embeddings.
  - The bounding box regression is substituted by a down-scaled mask.
    - Additionally the anchors are swapped by dilated convolutions, serving a similar purpose without requiring high amounts of memory as they work on downscaled spatial dimensions.
- - The object classifier is removed and it is assumed that if in the downscaled mask there is no activation then the object does not exists on the image (otherwise, it does exist and it is located on the activations).
  - There is a final refiner that is class-independent and smoothes the downsampled mask into an upsampled mask. As it only locally refines masks, there are no dilated convolutions and thus it is memory usage is low.

@@ -75,8 +75,7 @@ class BoundingBox():
     def cropTensor(self, tensor_to_crop, batch):
         return tensor_to_crop[batch:batch+1, :,self.top:self.bottom+1,self.left:self.right+1]   
 
-    def areBoundsAproximatelySimilar(self, bounding_box):
-        pixels_interval = 10
+    def areBoundsAproximatelySimilar(self, bounding_box, pixels_interval=10):      
         return ( self._top <= bounding_box._top + pixels_interval or self._top >= bounding_box._top - pixels_interval ) and \
             ( self._left <= bounding_box._left + pixels_interval or self._left >= bounding_box._left - pixels_interval ) and \
             ( self._right <= bounding_box._right + pixels_interval or self._right >= bounding_box._right - pixels_interval ) and \
