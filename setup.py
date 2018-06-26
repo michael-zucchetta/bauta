@@ -3,6 +3,7 @@
 # script that will install all the dependencies
 #
 from distutils.core import setup
+from setuptools import find_packages
 
 setup(name='bauta',
       version='0.0.1',
@@ -10,5 +11,5 @@ setup(name='bauta',
       author='Pau Carré Cardona, Michael Zucchetta',
       author_email='pau.carre@gmail.com, michael.zucchetta@gmail.com',
       url='https://github.com/gilt/bauta',
-      packages=['bauta']
+      packages=find_packages(exclude='test'),
      )
