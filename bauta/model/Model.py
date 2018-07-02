@@ -7,7 +7,6 @@ import torch
 import cv2
 import numpy as np
 
-from bauta.utils.CudaUtils import CudaUtils
 from bauta.utils.ModelUtils import ModelUtils
 
 from bauta.model.Backbone import Backbone
@@ -27,7 +26,6 @@ class Model(nn.Module):
         self.classifiers = Classifiers(classes)
 
     def forward(self, input):
-        cuda_utils = CudaUtils()
         embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.backbone(input)
         predicted_masks, mask_embeddings = self.mask_detectors(embeddings_merged)
         return predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8

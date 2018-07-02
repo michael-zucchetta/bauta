@@ -72,7 +72,7 @@ class Inference():
 @click.option('--visual_logging', default=False, help='Diplay in a window the intermediate and final inference results.')
 @click.option('--gpu', default=0, help='GPU index')
 def inference(data_path, path, result_folder, threshold, visual_logging, gpu):
-    config = DatasetConfiguration(False, data_path)
+    config = DatasetConfiguration(False, data_path, is_inference=True)
     inference_utils = InferenceUtils(threshold, config, visual_logging)
     inferencer = Inferencer(inference_utils, config, visual_logging, gpu)
     inference = Inference(data_path, path, inferencer, result_folder, visual_logging, gpu)
