@@ -35,7 +35,7 @@ class DataAugmentationDataset(Dataset):
         self.system_utils = SystemUtils()
         self.visual_logging = visual_logging
         self.config = DatasetConfiguration(is_train, data_path)
-        self.dataset_utils = DatasetUtils()
+        self.dataset_utils = DatasetUtils(self.config)
         self.image_utils = ImageUtils()
         self.image_distortions = ImageDistortions()
         self.basic_background_remover = BasicBackgroundRemover()
