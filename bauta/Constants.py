@@ -20,6 +20,7 @@ class Constants():
         self.dataset_mask_prefix_regex = r'' + self.dataset_mask_prefix + '.+\.png$'
         self.max_image_retrieval_attempts = 2
         self.bounding_boxes_filename = 'bounding_boxes.json'
+        self.real_dataset_path_name = 'real'
         
     def datasetType(self, is_train):
         if is_train:

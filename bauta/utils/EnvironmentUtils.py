@@ -16,15 +16,15 @@ class EnvironmentUtils():
     def __init__(self, data_path):
         self.data_path = data_path
         if not os.path.isdir(data_path):
-            error_message = f"Data path '{data_path}' not found."
+            error_message = f'Data path "{data_path}" not found.'
             #TODO: check all subfolders are in place
             raise Exception(error_message)
-        self.models_path = os.path.join(self.data_path, "models/")
-        self.objects_path = os.path.join(self.data_path, "dataset/augmentation/")
-        self.dataset_path = os.path.join(self.data_path, "dataset/")
-        self.best_model_file = "model.backup"
-        self.logs_path = os.path.join(self.data_path, "logs")
-        self.image_download_path = os.path.join(self.data_path, "image_download")
+        self.models_path = os.path.join(self.data_path, 'models/')
+        self.objects_path = os.path.join(self.data_path, 'dataset/augmentation/')
+        self.dataset_path = os.path.join(self.data_path, 'dataset/')
+        self.best_model_file = 'model.backup'
+        self.logs_path = os.path.join(self.data_path, 'logs')
+        self.image_download_path = os.path.join(self.data_path, 'image_download')
         self.system_utils = SystemUtils()
         self.image_utils = ImageUtils()
 
@@ -48,7 +48,7 @@ class EnvironmentUtils():
         path = os.path.join(self.models_path, name)
         torch.save(mask_detector_model.float(), path)
 
-    def inputFilenamePath(self, index_path):
+    def inputFilenamePath(self, index_path, use_real_image=False):
         index_filename_path = os.path.join(index_path, constants.dataset_input_filename)
         return index_filename_path
 
@@ -56,12 +56,15 @@ class EnvironmentUtils():
         index_filename_path = os.path.join(index_path, constants.bounding_boxes_filename)
         return index_filename_path
 
-    def indexPath(self, index, is_train, clean_dir=False):
+    def indexPath(self, index, is_train, clean_dir=False, use_real_image=False):
         dataset_type = constants.datasetType(is_train)
-        index_path = os.path.join(os.path.join(self.dataset_path, dataset_type), f"{index}")
-        self.system_utils.makeDirIfNotExists(index_path)
-        if clean_dir:
-            self.system_utils.removeFilesFromDir(index_path)
+        if use_real_image:
+            index_path = os.path.join(self.config.data_real_images_path, f'{index % self.config.real_images_len}')
+        else:
+            index_path = os.path.join(os.path.join(self.dataset_path, dataset_type), f'{index}')
+            self.system_utils.makeDirIfNotExists(index_path)
+            if clean_dir:
+                self.system_utils.removeFilesFromDir(index_path)
         return index_path
 
     def blankMasks(self, classes):
@@ -90,8 +93,8 @@ class EnvironmentUtils():
                 return None    
         return target_masks
 
-    def getSampleWithIndex(self, index, is_train, classes):
-        index_path = self.indexPath(index, is_train)
+    def getSampleWithIndex(self, index, is_train, classes, take_real_image=False):
+        index_path = self.indexPath(index, is_train, use_real_image=take_real_image)
         input_filename_path = self.inputFilenamePath(index_path)
         alpha_mask_image_paths = self.system_utils.imagesInFolder(index_path, constants.dataset_mask_prefix_regex)
         if os.path.isfile(input_filename_path):
@@ -128,5 +131,5 @@ class EnvironmentUtils():
         if os.path.isfile(path):
             return self.loadModelFromPath(path)
         else:
-            sys.stderr.write(f"Model file not found in {path}.")
+            sys.stderr.write(f'Model file not found in {path}.')
             return None

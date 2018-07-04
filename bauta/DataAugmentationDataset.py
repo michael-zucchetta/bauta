@@ -16,6 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
 from bauta.utils.BasicBackgroundRemover import BasicBackgroundRemover
+from bauta.utils.DatasetUtils import DatasetUtils
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageDistortions import ImageDistortions
@@ -34,6 +35,7 @@ class DataAugmentationDataset(Dataset):
         self.system_utils = SystemUtils()
         self.visual_logging = visual_logging
         self.config = DatasetConfiguration(is_train, data_path)
+        self.dataset_utils = DatasetUtils()
         self.image_utils = ImageUtils()
         self.image_distortions = ImageDistortions()
         self.basic_background_remover = BasicBackgroundRemover()
@@ -166,16 +168,6 @@ class DataAugmentationDataset(Dataset):
         else:
             return background
 
-    def extractConnectedComponents(self, class_index, mask):
-        connected_component = None
-        image_utils = ImageUtils()
-        image_info = ImageInfo(mask)
-        if mask.sum() > 10.00:
-            mask = (mask * 255).astype(np.uint8)
-            _, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
-            x, y, w, h = cv2.boundingRect(contours[0])
-            return torch.IntTensor([class_index, x, y, x + w, y + h])
-
     def generateAugmentedImage(self, index, random_number_of_objects=None):
         class_index_to_count = self.getRandomClassIndexToCount(random_number_of_objects)
         class_indexes_and_objects = [self.objectsInClass(index, class_index, count) for class_index, count in enumerate(class_index_to_count) if count > 0]
@@ -185,11 +177,12 @@ class DataAugmentationDataset(Dataset):
             constants.max_image_retrieval_attempts)
         target_masks = self.environment.blankMasks(self.config.classes)
         original_object_areas = torch.zeros(len(self.config.classes))
-        bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5)).int()
+        # bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5)).int()
+        bounding_boxes = torch.zeros((50, 5)).int()
         classes_in_input = set()
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
             distorted_class_object = self.image_distortions.distortImage(class_object)
-            bounding_box = self.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
+            bounding_box = self.dataset_utils.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)            
@@ -218,7 +211,8 @@ class DataAugmentationDataset(Dataset):
         (input_image, target_masks, bounding_boxes) = None, None, None
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
-                input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
+                use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available
+                input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes, use_real_images)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
         if not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes):

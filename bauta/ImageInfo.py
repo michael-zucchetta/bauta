@@ -5,7 +5,10 @@ class ImageInfo():
         self.height = image.shape[0]
         self.width  = image.shape[1]
         self.aspect_ratio = self.width / self.height
-        self.channels = image.shape[2]
+        if len(image.shape) > 2:
+            self.channels = image.shape[2]
+        else:
+            self.channels = 1
 
     def area(self):
         return (self.width + 1) * (self.height + 1)
