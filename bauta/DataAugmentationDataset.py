@@ -31,10 +31,10 @@ class DataAugmentationDataset(Dataset):
     def __init__(self, is_train, data_path, visual_logging=False, max_samples=None, seed=None):
         super(DataAugmentationDataset, self).__init__()
         random.seed(seed)
-        self.environment = EnvironmentUtils(data_path)
         self.system_utils = SystemUtils()
         self.visual_logging = visual_logging
         self.config = DatasetConfiguration(is_train, data_path)
+        self.environment = EnvironmentUtils(data_path, self.config.data_real_images_path)
         self.dataset_utils = DatasetUtils(self.config)
         self.image_utils = ImageUtils()
         self.image_distortions = ImageDistortions()
