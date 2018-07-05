@@ -79,7 +79,7 @@ class DataAugmentationDataset(Dataset):
         return image
 
     def randomBackground(self):
-        use_flat_background = bool(random.getrandbits(1))
+        use_flat_background = bool(False)#random.getrandbits(1))
         if use_flat_background:
             background_image = np.ones( (constants.input_height, constants.input_width, 3), dtype=np.uint8) * 255
             use_white_background = bool(random.getrandbits(1))
