@@ -18,7 +18,7 @@ class EnvironmentUtils():
         self.data_path = data_path
         self.data_real_images_path = data_real_images_path
         if data_real_images_path is not None:
-            self.real_images_len = os.listdir(self.data_real_images_path)
+            self.real_images_len = len(os.listdir(self.data_real_images_path))
         if not os.path.isdir(data_path):
             error_message = f'Data path "{data_path}" not found.'
             #TODO: check all subfolders are in place

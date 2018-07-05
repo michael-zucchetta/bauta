@@ -209,9 +209,10 @@ class DataAugmentationDataset(Dataset):
 
     def __getitem__(self, index, max_attempts=10):
         (input_image, target_masks, bounding_boxes) = None, None, None
+        use_real_images = False
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
-                use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available
+                use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available and self.config.is_train
                 input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes, use_real_images)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())

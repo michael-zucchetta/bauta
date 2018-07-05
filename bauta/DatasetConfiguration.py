@@ -42,8 +42,8 @@ class DatasetConfiguration():
                     sys.stderr.write(f'Not enough images for class "{class_label}".')
                     sys.exit(-1)
             # to be improved
-            self.real_images_length = os.listdir(self.data_real_images_path)
-            self.real_images_available = len(self.real_images_length) > 100
+            real_images_length = len(os.listdir(self.data_real_images_path))
+            self.real_images_available = real_images_length > 100
             self.probability_using_real_images = 0.7 # add the option under
         self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
         self.max_classes_per_image = 1
