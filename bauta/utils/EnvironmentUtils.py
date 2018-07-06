@@ -16,9 +16,12 @@ class EnvironmentUtils():
 
     def __init__(self, data_path, data_real_images_path=None):
         self.data_path = data_path
-        self.data_real_images_path = data_real_images_path
+        self.data_real_train_images_path = f'{data_real_images_path}/train'
+        self.data_real_test_images_path = f'{data_real_images_path}/test'
         if data_real_images_path is not None:
-            self.real_images_len = len(os.listdir(self.data_real_images_path))
+            # to be improved
+            self.real_train_images_len = len(os.listdir(self.data_real_train_images_path))
+            self.real_test_images_len = len(os.listdir(self.data_real_test_images_path))
         if not os.path.isdir(data_path):
             error_message = f'Data path "{data_path}" not found.'
             #TODO: check all subfolders are in place
@@ -63,7 +66,11 @@ class EnvironmentUtils():
     def indexPath(self, index, is_train, clean_dir=False, use_real_image=False):
         dataset_type = constants.datasetType(is_train)
         if use_real_image:
-            index_path = os.path.join(self.data_real_images_path, f'{index % self.real_images_len}')
+            # to be improved
+            if is_train:
+                index_path = os.path.join(self.data_real_train_images_path,f'{index % self.real_train_images_len}')
+            else:
+                index_path = os.path.join(self.data_real_test_images_path,f'{index % self.real_test_images_len}')
         else:
             index_path = os.path.join(os.path.join(self.dataset_path, dataset_type), f'{index}')
             self.system_utils.makeDirIfNotExists(index_path)

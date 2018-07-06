@@ -212,7 +212,7 @@ class DataAugmentationDataset(Dataset):
         use_real_images = False
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
-                use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available and self.config.is_train
+                use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available
                 input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes, use_real_images)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
