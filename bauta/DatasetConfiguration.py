@@ -44,7 +44,7 @@ class DatasetConfiguration():
             # to be improved
             real_images_length = len(os.listdir(f'{self.data_real_images_path}/{self.dataset_type}'))
             self.real_images_available = real_images_length > 100
-            self.probability_using_real_images = 0.7 # add the option under
+            self.probability_using_real_images = 0.2 # add the option under
         self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
         self.max_classes_per_image = 1
         self.max_objects_per_class = 1
