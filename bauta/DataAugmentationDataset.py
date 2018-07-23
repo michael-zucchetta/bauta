@@ -17,6 +17,7 @@ from torchvision import transforms, utils
 
 from bauta.utils.BasicBackgroundRemover import BasicBackgroundRemover
 from bauta.utils.DatasetUtils import DatasetUtils
+from bauta.utils.DressDetectorModelComposer import DressDetectorModelComposer 
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageDistortions import ImageDistortions
@@ -31,6 +32,7 @@ class DataAugmentationDataset(Dataset):
     def __init__(self, is_train, data_path, visual_logging=False, max_samples=None, seed=None):
         super(DataAugmentationDataset, self).__init__()
         random.seed(seed)
+        self.model_composer = DressDetectorModelComposer(is_train, data_path)
         self.system_utils = SystemUtils()
         self.visual_logging = visual_logging
         self.config = DatasetConfiguration(is_train, data_path)
@@ -162,7 +164,7 @@ class DataAugmentationDataset(Dataset):
                 random_background_class = self.config.background_classes[random_background_class_index]
                 random_object_index = random.randint(0, len(self.config.objects[random_background_class]) - 1)
                 background_object_image = self.objectInClass(random_object_index, random_background_class_index, background_classes=True) 
-                distorted_background_object = self.image_distortions.distortImage(background_object_image)
+                distorted_background_object = self.image_distortions.distortImages(background_object_image)
                 background, _ = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_background_object, background, 0, 0)
             return background
         else:
@@ -181,11 +183,21 @@ class DataAugmentationDataset(Dataset):
         bounding_boxes = torch.zeros((50, 5)).int()
         classes_in_input = set()
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
-            distorted_class_object = self.image_distortions.distortImage(class_object)
+            print(f'fefe {self.config.classes[class_index]}')
+            if self.config.classes[class_index] == 'dress': #to be changed, we only support this at the moment
+              print('fITSA BOY')
+              dress_image, only_dress_composition, hue = self.model_composer.compose(class_object)
+              print('fITSA BOY')
+              distorted_class_object, extra_class_object = self.image_distortions.distortImages(dress_image, only_dress_composition)
+            else:
+              distorted_class_object = self.image_distortions.distortImages(class_object)
             bounding_box = self.dataset_utils.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
-            input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)            
+            if self.config.classes[class_index] == 'dress':
+              input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0, extra_class_object)
+            else:
+              input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
             classes_in_input.add(class_index)
         if self.visual_logging:

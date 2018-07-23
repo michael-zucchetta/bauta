@@ -46,16 +46,22 @@ class ImageUtils():
                     (image_background[image_background_y_offset_from : image_background_y_offset_to, image_background_x_offset_from : image_background_x_offset_to, channel_index] * (1 - (pasted_image_mask[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to] / 255)))
         return image_background
 
-    def pasteRGBAimageIntoRGBimage(self, rgba_image, rgb_image, x_offset, y_offset, include_alpha_channel=False):
+    def pasteRGBAimageIntoRGBimage(self, rgba_image, rgb_image, x_offset, y_offset, include_alpha_channel=False, mask_image=None, skip_mask=False):
         image_info = ImageInfo(rgba_image)
         object_rgb  = rgba_image[:, :, 0:3]
-        object_mask = rgba_image[:, :, 3]
+        if mask_image is None:
+          object_mask = rgba_image[:, :, 3]
+        else:
+          object_mask = mask_image
         rgb_image = self._pasteImage(object_rgb, object_mask, rgb_image, x_offset, y_offset)
 
         image_info_rgb = ImageInfo(rgb_image)
-        mask = self.blankImage(image_info_rgb.width, image_info_rgb.height, 1)
-        mask[y_offset : image_info.height + y_offset, x_offset : image_info.width + x_offset, 0] = object_mask[:, :]
-        return rgb_image, mask
+        if not skip_mask:
+          mask = self.blankImage(image_info_rgb.width, image_info_rgb.height, 1)
+          mask[y_offset : image_info.height + y_offset, x_offset : image_info.width + x_offset, 0] = object_mask[:, :]
+          return rgb_image, mask
+        else:
+          return rgb_image
 
     def toNumpy(self, tensor):
         if tensor.dim() == 2:

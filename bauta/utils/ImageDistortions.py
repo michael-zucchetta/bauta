@@ -113,7 +113,8 @@ class ImageDistortions():
         transformed_image_with_color_noise = self.applyContrastAndBrightness(image[:, :, 0:3])
         return transformed_image_with_color_noise
 
-    def distortImage(self, item_image):
+    # The extra image is needed for images with a composed model
+    def distortImages(self, item_image, extra_image=None):
         item_image_info = ImageInfo(item_image)
         (scale_x, scale_y) = self.getScaleParams(item_image_info.width, item_image_info.height)
         scale_matrix = self.getScaleMatrix(scale_x, scale_y)
@@ -122,9 +123,14 @@ class ImageDistortions():
         homography_matrix = np.dot(scale_matrix, np.dot(rototranslation_matrix, perspective_matrix))
 
         transformed_image = cv2.warpPerspective( item_image, homography_matrix, (constants.input_width, constants.input_height) )
+        if extra_image is not None:
+            extra_transformed_image = cv2.warpPerspective( extra_image, homography_matrix, (constants.input_width, constants.input_height) )
+        
         if item_image_info.channels == 4:
             alpha_channel = transformed_image[:, :, 3]
         if item_image_info.channels == 4:
-            return self.image_utils.addAlphaChannelToImage(transformed_image, alpha_channel)
-        else:
+            transformed_image = self.image_utils.addAlphaChannelToImage(transformed_image, alpha_channel)
+        if extra_image is None:
             return transformed_image
+        else:
+            return transformed_image, extra_transformed_image
