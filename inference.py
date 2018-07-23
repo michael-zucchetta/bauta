@@ -25,6 +25,7 @@ class Inference():
         self.cuda_utils = CudaUtils()
         self.gpu = gpu
         self.model = self.cuda_utils.cudify([self.environment.loadModel(self.environment.best_model_file)], self.gpu)[0]
+        #self.classifiers = self.cuda_utils.cudify([self.environment.loadModel('classification.backup')], self.gpu)[0]
         self.system_utils = SystemUtils()
         self.image_utils = ImageUtils()
 

@@ -73,7 +73,7 @@ class ImageUtils():
             x_offset , y_offset, use_image_to_add_alpha_channel=False, skip_alpha_channel=True)
         return input_image_scaled
 
-    def paddingScale(self, input_image, input_height=constants.input_height, input_width=constants.input_width):
+    def paddingScale(self, input_image, input_height=constants.input_height, input_width=constants.input_width, mask=False):
         image_info = ImageInfo(input_image)
         # image scaled to input field keeping aspect ratio
         if input_width / input_height > image_info.aspect_ratio:
@@ -89,6 +89,8 @@ class ImageUtils():
             input_image_scaled = self.addAlphaChannelToImage(input_image_scaled)
         input_image_scaled, _ = self.pasteRGBAimageIntoRGBimage(input_image_scaled, new_image, \
                 int( ( input_width - new_width ) / 2 ), int( (input_height - new_height) / 2 ), True)
+        if mask:
+            input_image_scaled = cv2.cvtColor( input_image_scaled, cv2.COLOR_RGB2GRAY ) 
         return input_image_scaled, new_height, new_width
 
     def blankImage(self, width, height, channels=None):

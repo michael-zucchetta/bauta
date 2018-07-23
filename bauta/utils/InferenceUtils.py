@@ -71,7 +71,8 @@ class InferenceUtils():
         for batch_index in range(masks.size()[0]):
             for class_index in range(masks.size()[1]):
                 probability = classifier_predictions[batch_index][class_index].data[0]
-                if probability > self.threshold:
+                print(f'class index {class_index} {probability} {self.config.classes[class_index]}')
+                if probability > 0.001:#self.threshold:
                     mask = image_utils.toNumpy(masks[batch_index][class_index].data)
                     if self.visual_logging:
                         cv2.imshow(f'Mask {self.config.classes[class_index]}', cv2.resize(mask, (mask.shape[1], mask.shape[0])) )
