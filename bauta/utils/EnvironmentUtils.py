@@ -30,6 +30,7 @@ class EnvironmentUtils():
         self.objects_path = os.path.join(self.data_path, 'dataset/augmentation/')
         self.dataset_path = os.path.join(self.data_path, 'dataset/')
         self.best_model_file = 'model.backup'
+        self.best_classification_model_file = 'classification.backup'
         self.logs_path = os.path.join(self.data_path, 'logs')
         self.image_download_path = os.path.join(self.data_path, 'image_download')
         self.system_utils = SystemUtils()
