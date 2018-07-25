@@ -52,7 +52,7 @@ class DatasetConfiguration():
             self.real_images_available = real_images_length > 100
             self.probability_using_real_images = 0.2 # add the option under
         self.length = functools.reduce(operator.add, [len(images) for (object, images) in self.objects.items()], 0)
-        self.max_classes_per_image = 1
+        self.max_classes_per_image = 4
         self.max_objects_per_class = 1
         self.max_background_objects_per_image = 2
         self.probability_using_cache = 0.95

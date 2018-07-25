@@ -64,19 +64,22 @@ class EnvironmentUtils():
         index_filename_path = os.path.join(index_path, constants.bounding_boxes_filename)
         return index_filename_path
 
-    def indexPath(self, index, is_train, clean_dir=False, use_real_image=False):
-        dataset_type = constants.datasetType(is_train)
-        if use_real_image:
-            # to be improved
-            if is_train:
-                index_path = os.path.join(self.data_real_train_images_path,f'{index % self.real_train_images_len}')
-            else:
-                index_path = os.path.join(self.data_real_test_images_path,f'{index % self.real_test_images_len}')
+    def indexRealPath(self, index, is_train, clean_dir=False):
+        if is_train:
+            index_path_real = os.path.join(self.data_real_train_images_path,f'{index % self.real_train_images_len}')
         else:
-            index_path = os.path.join(os.path.join(self.dataset_path, dataset_type), f'{index}')
-            self.system_utils.makeDirIfNotExists(index_path)
-            if clean_dir:
-                self.system_utils.removeFilesFromDir(index_path)
+            index_path_real = os.path.join(self.data_real_test_images_path,f'{index % self.real_test_images_len}')
+        index_path = self.indexPath(index, is_train)
+        self.system_utils.makeDirIfNotExists(index_path_real, clean_dir)
+        return index_path_real, index_path
+
+
+    def indexPath(self, index, is_train, clean_dir=False):
+        dataset_type = constants.datasetType(is_train)
+        index_path = os.path.join(os.path.join(self.dataset_path, dataset_type), f'{index}')
+        self.system_utils.makeDirIfNotExists(index_path)
+        if clean_dir:
+            self.system_utils.removeFilesFromDir(index_path)
         return index_path
 
     def blankMasks(self, classes):
@@ -105,8 +108,8 @@ class EnvironmentUtils():
                 return None    
         return target_masks
 
-    def getSampleWithIndex(self, index, is_train, classes, take_real_image=False):
-        index_path = self.indexPath(index, is_train, use_real_image=take_real_image)
+    def getSampleWithIndex(self, index, is_train, classes):
+        index_path = self.indexPath(index, is_train)
         input_filename_path = self.inputFilenamePath(index_path)
         alpha_mask_image_paths = self.system_utils.imagesInFolder(index_path, constants.dataset_mask_prefix_regex)
         if os.path.isfile(input_filename_path):
@@ -126,15 +129,21 @@ class EnvironmentUtils():
         original_object_areas_path = os.path.join(index_path, constants.dataset_original_object_areas_filename)
         return original_object_areas_path
 
-    def storeSampleWithIndex(self, index, is_train, input_image, target_masks, original_object_areas, bounding_boxes, mask_class_indexes, classes):
-        index_path = self.indexPath(index, is_train, clean_dir=True)
+    def writeInputFile(self, index_path, input_image):
+        input_filename_path = self.inputFilenamePath(index_path)        
+        cv2.imwrite(input_filename_path, input_image, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+
+    def writeMaskFiles(self, index_path, target_maks, mask_class_indexes, classes):
         for class_index in mask_class_indexes:
             class_name = classes[class_index]
             object_mask_filename = os.path.join(index_path, f'{constants.dataset_mask_prefix}{class_name}.png')
             cv2.imwrite(object_mask_filename, target_masks[:, :, class_index : class_index + 1], [cv2.IMWRITE_PNG_COMPRESSION, 9])
+
+    def storeSampleWithIndex(self, index, is_train, input_image, target_masks, original_object_areas, bounding_boxes, mask_class_indexes, classes):
+        index_path = self.indexPath(index, is_train, clean_dir=True)
+        self.writeMaskFiles(index_path, target_masks, mask_class_indexes, classes)
         torch.save(bounding_boxes.cpu(), self.boundingBoxesFilenamePath(index_path))
-        input_filename_path = self.inputFilenamePath(index_path)        
-        cv2.imwrite(input_filename_path, input_image, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        self.writeInputFile(input_filename_path, input_image)
         original_object_areas_path = self.originalObjectAreasPath(index_path)
         torch.save(original_object_areas.float(), original_object_areas_path)
 

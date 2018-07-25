@@ -164,7 +164,7 @@ class DataAugmentationDataset(Dataset):
                 random_background_class = self.config.background_classes[random_background_class_index]
                 random_object_index = random.randint(0, len(self.config.objects[random_background_class]) - 1)
                 background_object_image = self.objectInClass(random_object_index, random_background_class_index, background_classes=True) 
-                distorted_background_object = self.image_distortions.distortImages(background_object_image)
+                distorted_background_object = self.image_distortions.distortImage(background_object_image)
                 background, _ = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_background_object, background, 0, 0)
             return background
         else:
@@ -185,9 +185,11 @@ class DataAugmentationDataset(Dataset):
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
             if self.config.classes[class_index] == 'dress': #to be changed, we only support this at the moment
               dress_image, only_dress_composition, hue = self.model_composer.compose(class_object)
-              distorted_class_object, extra_class_object = self.image_distortions.distortImages(dress_image, only_dress_composition)
+              homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(dress_image))
+              distorted_class_object = self.image_distortions.distortImage(dress_image, homography_matrix)
+              extra_class_object = self.image_distortions.distortImage(only_dress_composition, homography_matrix)
             else:
-              distorted_class_object = self.image_distortions.distortImages(class_object)
+              distorted_class_object = self.image_distortions.distortImage(class_object)
             bounding_box = self.dataset_utils.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
@@ -207,6 +209,19 @@ class DataAugmentationDataset(Dataset):
         self.environment.storeSampleWithIndex(index, self.config.is_train, input_image, target_masks, original_object_areas, bounding_boxes, classes_in_input, self.config.classes)
         return input_image, target_masks, bounding_boxes
 
+    def getAndDistortRealImage(self, index):
+        index_path_real, index_path = self.environment.indexRealPath(index, self.config.is_train, clean_dir=True)
+        input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
+        homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(input_image))
+        input_image = self.image_utils.distortImage(input_image, homography_matrix)
+        target_masks = [self.image_utils.distortImage(input_image, homography_matrix) \
+                for target_mask in target_masks]
+        target_mask_indexes = np.where(target_masks != 0)
+        self.writeMaskFiles(index_path, target_masks, target_mask_indexes, self.config.classes)
+        self.config.writeInputFile(index_path, input_image)
+        bounding_boxes, original_object_areas = self.dataset_utils.createBoundingBoxesAndObjectAreas(index_path)
+        return input_image, target_mask, bounding_boxes
+
     def isDataSampleConsistentWithDatasetConfiguration(self, input_image, target_masks, bounding_boxes):
         if input_image is not None and target_masks is not None and bounding_boxes is not None:
             if target_masks.shape[2] is len(self.config.classes):
@@ -218,20 +233,22 @@ class DataAugmentationDataset(Dataset):
 
     def __getitem__(self, index, max_attempts=10):
         (input_image, target_masks, bounding_boxes) = None, None, None
-        use_real_images = False
         if np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_cache:
             try:
-                use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available
-                input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes, use_real_images)
+                input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
             except BaseException as e:
                 sys.stderr.write(traceback.format_exc())
         if not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes):
             index_path = self.environment.indexPath(index, self.config.is_train)
             self.system_utils.rm(index_path)
+            use_real_images = np.random.uniform(0, 1, 1)[0] <= self.config.probability_using_real_images and self.config.real_images_available
             current_attempt = 0
             while (not self.isDataSampleConsistentWithDatasetConfiguration(input_image, target_masks, bounding_boxes)) and current_attempt < max_attempts:
                 try:
-                    input_image, target_masks, bounding_boxes = self.generateAugmentedImage(index)
+                    if not use_real_images:
+                      input_image, target_masks, bounding_boxes = self.generateAugmentedImage(index)
+                    else:
+                      input_image, target_masks, bounding_boxes = self.getAndDistortRealImage(index)
                 except BaseException as e:
                     sys.stderr.write(traceback.format_exc())
                     current_attempt = current_attempt + 1
