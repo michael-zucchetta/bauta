@@ -206,7 +206,7 @@ class Trainer():
         classifier_predictions2 = self.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
         loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.25
-        loss_classifier2 = self.balancedLoss(classifier_predictions2, classifier_targets) * 1.0
+        loss_classifier2 = self.balancedLoss(classifier_predictions2, classifier_targets) * 0.5
         self.logBatch(mask_embeddings[:,0,:,:,:].squeeze(1), "Embed")
         predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
         self.logBatch(predicted_refined_mask, "Predict")

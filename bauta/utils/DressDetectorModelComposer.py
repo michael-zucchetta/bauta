@@ -215,7 +215,7 @@ class DressDetectorModelComposer():
         return composed_image, only_dress_composition
 
     def compose(self, garment_image):
-        scale = 0.70
+        scale = 2.0#0.70
         hue = self.getAverageHue(garment_image)
         garment_image_height, garment_image_width, garment_image_colors = garment_image.shape
         apply_random_colour = self.colour_distortion and bool(random.getrandbits(1))
@@ -225,7 +225,7 @@ class DressDetectorModelComposer():
             int(scale * garment_image_height)), interpolation = cv2.INTER_CUBIC)
         composed_image = None
         only_dress_composition = None
-        add_model = bool(random.getrandbits(1))
+        add_model = np.random.uniform(0, 1) < 0.95
         if add_model:
             composed_image, only_dress_composition = self.addModel(garment_image)
 
