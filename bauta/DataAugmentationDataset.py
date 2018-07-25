@@ -183,11 +183,8 @@ class DataAugmentationDataset(Dataset):
         bounding_boxes = torch.zeros((50, 5)).int()
         classes_in_input = set()
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
-            print(f'fefe {self.config.classes[class_index]}')
             if self.config.classes[class_index] == 'dress': #to be changed, we only support this at the moment
-              print('fITSA BOY')
               dress_image, only_dress_composition, hue = self.model_composer.compose(class_object)
-              print('fITSA BOY')
               distorted_class_object, extra_class_object = self.image_distortions.distortImages(dress_image, only_dress_composition)
             else:
               distorted_class_object = self.image_distortions.distortImages(class_object)
