@@ -69,6 +69,10 @@ class DataAugmentationDataset(Dataset):
         y_seed = random.uniform(0, 1) * (image_info.height - constants.input_height)
         initial_height = int(0 + y_seed)
         final_height = int(y_seed + constants.input_height)
+        if final_height - initial_height == 1:
+            initial_height = initial_height + 1
+        if final_width - initial_width == 1:
+            initial_width = initial_width + 1
         return image[initial_height:final_height, initial_width:final_width, :]
 
     def coverInputDimensions(self, image):
