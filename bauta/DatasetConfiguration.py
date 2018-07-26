@@ -29,17 +29,11 @@ class DatasetConfiguration():
             sys.stderr.write(f'Unable to load YAML configuration file {self.config_path}\n')
             sys.stderr.write(traceback.format_exc())
             sys.exit('Error loading dataset')
-        self.armless_model_image_path = os.path.join(self.data_path, 'images-model/base_model_beig_armless.png')
-        self.armless_legless_model_image_path = os.path.join(self.data_path, 'images-model/base_model_beig_armless_legless.png')
-        self.right_leg_image_path = os.path.join(self.data_path, 'images-model/right_leg.png')
-        self.heads_path = os.path.join(self.data_path, 'images-model/heads')
-        self.upperarm_image_path = os.path.join(self.data_path, 'images-model/upperarm.png')
-        self.forearm_image_path = os.path.join(self.data_path, 'images-model/forearm.png')
         self.objects = {}
         self.classes = self.config['classes']
         self.background_classes = []
         self.special_composition_classes = {
-                'dress': DressDetectorModelComposer(is_train, data_path),
+                'dress': DressDetectorModelComposer(is_train, data_path, False),
         }
         if 'background_classes' in self.config and self.config['background_classes'] is not None:
             self.background_classes = self.config['background_classes']

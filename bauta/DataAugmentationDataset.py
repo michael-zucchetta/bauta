@@ -187,8 +187,8 @@ class DataAugmentationDataset(Dataset):
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
             if self.config.classes[class_index] in self.config.special_composition_classes:
               composer = self.config.special_composition_classes[self.config.classes[class_index]]
-              spacial_class_image, only_item_composition, hue = composer.compose(class_object)
-              homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(dress_image))
+              special_class_image, only_item_composition, hue = composer.compose(class_object)
+              homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(special_class_image))
               distorted_class_object = self.image_distortions.distortImage(special_class_image, homography_matrix)
               extra_class_object = self.image_distortions.distortImage(only_item_composition, homography_matrix)
             else:

@@ -5,7 +5,6 @@ import os, random
 from torch.autograd import Variable
 import sys
 import cv2
-from bauta.DatasetConfiguration import DatasetConfiguration 
 import traceback
 import numpy as np
 from bauta.BoundingBox import BoundingBox
@@ -15,15 +14,21 @@ import math
 class DressDetectorModelComposer():
     """Generates randomly models wearing a dress."""
 
-    def __init__(self, is_train, data_path, colour_distortion=True, seed=None):
-        self.config = DatasetConfiguration(is_train, data_path)
+    def __init__(self, is_train, data_path, color_distortion=True, seed=None):
         random.seed(seed)
         self.image_utils = ImageUtils()
-        self.forearm_image = cv2.imread(self.config.forearm_image_path, cv2.IMREAD_UNCHANGED)
-        self.upperarm_image = cv2.imread(self.config.upperarm_image_path, cv2.IMREAD_UNCHANGED)
-        self.model_image = cv2.imread(self.config.armless_model_image_path, cv2.IMREAD_UNCHANGED)
-        self.model_image_legless = cv2.imread(self.config.armless_legless_model_image_path, cv2.IMREAD_UNCHANGED)
-        self.model_right_leg_image = cv2.imread(self.config.right_leg_image_path, cv2.IMREAD_UNCHANGED)
+        self.data_path = data_path
+        self.armless_model_image_path = os.path.join(self.data_path, 'images-model/base_model_beig_armless.png')
+        self.armless_legless_model_image_path = os.path.join(self.data_path, 'images-model/base_model_beig_armless_legless.png')
+        self.right_leg_image_path = os.path.join(self.data_path, 'images-model/right_leg.png')
+        self.heads_path = os.path.join(self.data_path, 'images-model/heads')
+        self.upperarm_image_path = os.path.join(self.data_path, 'images-model/upperarm.png')
+        self.forearm_image_path = os.path.join(self.data_path, 'images-model/forearm.png')
+        self.forearm_image = cv2.imread(self.forearm_image_path, cv2.IMREAD_UNCHANGED)
+        self.upperarm_image = cv2.imread(self.upperarm_image_path, cv2.IMREAD_UNCHANGED)
+        self.model_image = cv2.imread(self.armless_model_image_path, cv2.IMREAD_UNCHANGED)
+        self.model_image_legless = cv2.imread(self.armless_legless_model_image_path, cv2.IMREAD_UNCHANGED)
+        self.model_right_leg_image = cv2.imread(self.right_leg_image_path, cv2.IMREAD_UNCHANGED)
         self.x_center_right_upper_arm = 25
         self.y_center_right_upper_arm = 40
         self.x_center_right_upper_arm_end = 45
@@ -35,7 +40,7 @@ class DressDetectorModelComposer():
         self.x_center_left_upper_arm = 105 - self.x_center_right_upper_arm
         self.y_center_left_upper_arm = self.y_center_right_upper_arm
         self.arm_spread_width_offset = 200
-        self.colour_distortion = colour_distortion
+        self.color_distortion = color_distortion
 
     def randomColor(self, garment_image):
         garment_image_bgr = garment_image[:,:,0:3]
@@ -214,10 +219,10 @@ class DressDetectorModelComposer():
         return composed_image, only_dress_composition
 
     def compose(self, garment_image):
-        scale = 2.0#0.70
+        scale = 2.5# to be checked 0.70
         hue = self.getAverageHue(garment_image)
         garment_image_height, garment_image_width, garment_image_colors = garment_image.shape
-        apply_random_colour = self.colour_distortion and bool(random.getrandbits(1))
+        apply_random_colour = self.color_distortion and bool(random.getrandbits(1))
         if apply_random_colour:
             garment_image, hue = self.randomColor(garment_image)
         garment_image = cv2.resize(garment_image, (int(scale * garment_image_width), \
