@@ -101,7 +101,6 @@ class Trainer():
         else:
             self.log(f"Model did *NOT* Improve. Current Best Test Loss {best_test_loss:{1}.{4}} | Current Test Loss {average_current_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_test_loss - average_current_test_loss) / average_current_test_loss):{1}.{4}} %")
 
-        print(f'AADDA 1 {type(average_classifier_test_loss)} vs {type(best_classifier_test_loss)}')
         if average_classifier_test_loss < best_classifier_test_loss:
             self.log(f"Model Improved. Previous Best Test Classifier Loss {best_classifier_test_loss:{1}.{4}} | Current Best classifier Loss  {average_classifier_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_classifier_test_loss - average_classifier_test_loss) / average_classifier_test_loss):{1}.{4}} %")
             best_classifier_test_loss = average_classifier_test_loss 

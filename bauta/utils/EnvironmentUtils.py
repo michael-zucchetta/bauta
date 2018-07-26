@@ -64,13 +64,13 @@ class EnvironmentUtils():
         index_filename_path = os.path.join(index_path, constants.bounding_boxes_filename)
         return index_filename_path
 
-    def indexRealPath(self, index, is_train, clean_dir=False):
+    def indexPathReal(self, index, is_train, clean_dir=False):
         if is_train:
             index_path_real = os.path.join(self.data_real_train_images_path,f'{index % self.real_train_images_len}')
         else:
             index_path_real = os.path.join(self.data_real_test_images_path,f'{index % self.real_test_images_len}')
-        index_path = self.indexPath(index, is_train)
-        self.system_utils.makeDirIfNotExists(index_path_real, clean_dir)
+        index_path = self.indexPath(index, is_train, clean_dir)
+        self.system_utils.makeDirIfNotExists(index_path)
         return index_path_real, index_path
 
 
@@ -93,11 +93,13 @@ class EnvironmentUtils():
     def _retrieveAlphaMasksAndObjects(self, alpha_mask_image_paths, classes, index_path):
         target_masks = self.blankMasks(classes)
         objects_in_image = self.objectsInImage(classes)
+        class_indexes = []
         for alpha_image_path in alpha_mask_image_paths:
             splitted_alpha_file_path = re.sub(f'{constants.object_ext}$', '', alpha_image_path).split(constants.dataset_mask_prefix)
             (_, class_name) = splitted_alpha_file_path
             if class_name in classes:
                 class_index = classes.index(class_name)
+                class_indexes.append(class_index)
                 mask_class_image = cv2.imread(os.path.join(index_path, alpha_image_path), cv2.IMREAD_UNCHANGED)
                 if mask_class_image is None:
                     return None
@@ -106,17 +108,20 @@ class EnvironmentUtils():
                     target_masks[:, :, class_index : class_index + 1] = mask_class_image[:, :]
             else:
                 return None    
-        return target_masks
+        return target_masks, class_indexes
+
+    def retrieveMasks(self, index_path, classes):
+        alpha_mask_image_paths = self.system_utils.imagesInFolder(index_path, constants.dataset_mask_prefix_regex)
+        return self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
 
     def getSampleWithIndex(self, index, is_train, classes):
         index_path = self.indexPath(index, is_train)
         input_filename_path = self.inputFilenamePath(index_path)
-        alpha_mask_image_paths = self.system_utils.imagesInFolder(index_path, constants.dataset_mask_prefix_regex)
         if os.path.isfile(input_filename_path):
             bounding_boxes = torch.load(self.boundingBoxesFilenamePath(index_path))
             input_image, target_masks = None, None
             input_image = cv2.imread(input_filename_path, cv2.IMREAD_COLOR)
-            target_masks = self._retrieveAlphaMasksAndObjects(alpha_mask_image_paths, classes, index_path)
+            target_masks, _ = self.retrieveMasks(index_path, classes)
             if target_masks is None:
                 return None, None, None, None
             original_object_areas_path = self.originalObjectAreasPath(index_path)
@@ -133,7 +138,7 @@ class EnvironmentUtils():
         input_filename_path = self.inputFilenamePath(index_path)        
         cv2.imwrite(input_filename_path, input_image, [cv2.IMWRITE_PNG_COMPRESSION, 9])
 
-    def writeMaskFiles(self, index_path, target_maks, mask_class_indexes, classes):
+    def writeMaskFiles(self, index_path, target_masks, mask_class_indexes, classes):
         for class_index in mask_class_indexes:
             class_name = classes[class_index]
             object_mask_filename = os.path.join(index_path, f'{constants.dataset_mask_prefix}{class_name}.png')
@@ -143,7 +148,7 @@ class EnvironmentUtils():
         index_path = self.indexPath(index, is_train, clean_dir=True)
         self.writeMaskFiles(index_path, target_masks, mask_class_indexes, classes)
         torch.save(bounding_boxes.cpu(), self.boundingBoxesFilenamePath(index_path))
-        self.writeInputFile(input_filename_path, input_image)
+        self.writeInputFile(index_path, input_image)
         original_object_areas_path = self.originalObjectAreasPath(index_path)
         torch.save(original_object_areas.float(), original_object_areas_path)
 

@@ -128,6 +128,6 @@ class ImageDistortions():
 
         transformed_image = cv2.warpPerspective( item_image, homography_matrix, (constants.input_width, constants.input_height) )
         
-        if item_image_info.channels == 4:
+        if ImageInfo(item_image).channels == 4:
             alpha_channel = transformed_image[:, :, 3]
         return transformed_image

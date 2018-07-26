@@ -179,7 +179,6 @@ class DressDetectorModelComposer():
         else:
             model_image = self.model_image
 
-        print(f'OOOO {type(model_image)}')
         model_image_height, model_image_width, model_image_colors = model_image.shape
 
         neckline_left, neckline_right = self.leftAndRightCoordinatesForNeckline(garment_image)

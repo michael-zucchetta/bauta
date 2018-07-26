@@ -210,17 +210,19 @@ class DataAugmentationDataset(Dataset):
         return input_image, target_masks, bounding_boxes
 
     def getAndDistortRealImage(self, index):
-        index_path_real, index_path = self.environment.indexRealPath(index, self.config.is_train, clean_dir=True)
-        input_image, target_masks, original_object_areas, bounding_boxes = self.environment.getSampleWithIndex(index, self.config.is_train, self.config.classes)
+        index_path_real, index_path = self.environment.indexPathReal(index, self.config.is_train, clean_dir=True)
+        input_image = cv2.imread(self.environment.inputFilenamePath(index_path_real), cv2.IMREAD_COLOR)
+        target_masks, class_indexes = self.environment.retrieveMasks(index_path_real, self.config.classes)
         homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(input_image))
-        input_image = self.image_utils.distortImage(input_image, homography_matrix)
-        target_masks = [self.image_utils.distortImage(input_image, homography_matrix) \
-                for target_mask in target_masks]
-        target_mask_indexes = np.where(target_masks != 0)
-        self.writeMaskFiles(index_path, target_masks, target_mask_indexes, self.config.classes)
-        self.config.writeInputFile(index_path, input_image)
+        input_image = self.image_distortions.distortImage(input_image, homography_matrix)
+        print(f'{(target_masks.shape)} vs {type(class_indexes)}')
+        for class_index in class_indexes:
+            target_masks[:, :, class_index : class_index + 1] = \
+                self.image_distortions.distortImage(target_masks[:, :, class_index : class_index + 1], homography_matrix).reshape(constants.input_width, constants.input_height, 1)
+        self.environment.writeMaskFiles(index_path, target_masks, class_indexes, self.config.classes)
+        self.environment.writeInputFile(index_path, input_image)
         bounding_boxes, original_object_areas = self.dataset_utils.createBoundingBoxesAndObjectAreas(index_path)
-        return input_image, target_mask, bounding_boxes
+        return input_image, target_masks, bounding_boxes
 
     def isDataSampleConsistentWithDatasetConfiguration(self, input_image, target_masks, bounding_boxes):
         if input_image is not None and target_masks is not None and bounding_boxes is not None:
