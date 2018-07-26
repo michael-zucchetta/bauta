@@ -6,6 +6,7 @@ import traceback
 import operator, functools
 
 from bauta.Constants import constants
+from bauta.utils.DressDetectorModelComposer import DressDetectorModelComposer
 from bauta.utils.SystemUtils import SystemUtils
 
 class DatasetConfiguration():
@@ -37,6 +38,9 @@ class DatasetConfiguration():
         self.objects = {}
         self.classes = self.config['classes']
         self.background_classes = []
+        self.special_composition_classes = {
+                'dress': DressDetectorModelComposer(is_train, data_path),
+        }
         if 'background_classes' in self.config and self.config['background_classes'] is not None:
             self.background_classes = self.config['background_classes']
         if not is_inference:

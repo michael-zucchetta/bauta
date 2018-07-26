@@ -17,7 +17,6 @@ from torchvision import transforms, utils
 
 from bauta.utils.BasicBackgroundRemover import BasicBackgroundRemover
 from bauta.utils.DatasetUtils import DatasetUtils
-from bauta.utils.DressDetectorModelComposer import DressDetectorModelComposer 
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageDistortions import ImageDistortions
@@ -32,7 +31,6 @@ class DataAugmentationDataset(Dataset):
     def __init__(self, is_train, data_path, visual_logging=False, max_samples=None, seed=None):
         super(DataAugmentationDataset, self).__init__()
         random.seed(seed)
-        self.model_composer = DressDetectorModelComposer(is_train, data_path)
         self.system_utils = SystemUtils()
         self.visual_logging = visual_logging
         self.config = DatasetConfiguration(is_train, data_path)
@@ -85,7 +83,7 @@ class DataAugmentationDataset(Dataset):
         return image
 
     def randomBackground(self):
-        use_flat_background = bool(False)#random.getrandbits(1))
+        use_flat_background = random.uniform(0, 1) > 0.99
         if use_flat_background:
             background_image = np.ones( (constants.input_height, constants.input_width, 3), dtype=np.uint8) * 255
             use_white_background = bool(random.getrandbits(1))
@@ -183,15 +181,16 @@ class DataAugmentationDataset(Dataset):
             constants.max_image_retrieval_attempts)
         target_masks = self.environment.blankMasks(self.config.classes)
         original_object_areas = torch.zeros(len(self.config.classes))
-        # bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5)).int()
-        bounding_boxes = torch.zeros((50, 5)).int()
+        #  bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5)).int()
+        bounding_boxes = torch.zeros((50, 5)).int() # to be improved
         classes_in_input = set()
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
-            if self.config.classes[class_index] == 'dress': #to be changed, we only support this at the moment
-              dress_image, only_dress_composition, hue = self.model_composer.compose(class_object)
+            if self.config.classes[class_index] in self.config.special_composition_classes:
+              composer = self.config.special_composition_classes[self.config.classes[class_index]]
+              spacial_class_image, only_item_composition, hue = composer.compose(class_object)
               homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(dress_image))
-              distorted_class_object = self.image_distortions.distortImage(dress_image, homography_matrix)
-              extra_class_object = self.image_distortions.distortImage(only_dress_composition, homography_matrix)
+              distorted_class_object = self.image_distortions.distortImage(special_class_image, homography_matrix)
+              extra_class_object = self.image_distortions.distortImage(only_item_composition, homography_matrix)
             else:
               distorted_class_object = self.image_distortions.distortImage(class_object)
             bounding_box = self.dataset_utils.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
