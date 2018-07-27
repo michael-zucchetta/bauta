@@ -134,3 +134,11 @@ class ImageUtils():
         blue_channel, green_channel, red_channel, alpha_channel = splits
         image_with_alpha_channel = cv2.merge((blue_channel, green_channel, red_channel))
         return image_with_alpha_channel
+
+    def getAlphaImageFromFlattening(self, image):
+        current_alpha_channel = np.transpose(image, axes=(2,0,1))[3]
+        current_alpha_channel = np.expand_dims(current_alpha_channel, axis=2)
+        current_alpha_channel[current_alpha_channel==1] = 0
+        current_alpha_channel = current_alpha_channel.astype(np.float32)
+        current_alpha_channel[:,:,:] = current_alpha_channel / 255
+        return current_alpha_channel

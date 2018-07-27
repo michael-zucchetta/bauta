@@ -9,6 +9,7 @@ import traceback
 import json
 
 from bauta.Constants import constants
+from bauta.ImageInfo import ImageInfo
 from bauta.utils.ImageUtils import ImageUtils
 from bauta.utils.SystemUtils import SystemUtils
 
@@ -136,6 +137,9 @@ class EnvironmentUtils():
 
     def writeInputFile(self, index_path, input_image):
         input_filename_path = self.inputFilenamePath(index_path)        
+        image_info = ImageInfo(input_image)
+        if image_info.width != constants.input_width or image_info.height != constants.input_height:
+            input_image = cv2.resize(input_image, (image_info.width, image_info.height) )
         cv2.imwrite(input_filename_path, input_image, [cv2.IMWRITE_PNG_COMPRESSION, 9])
 
     def writeMaskFiles(self, index_path, target_masks, mask_class_indexes, classes):

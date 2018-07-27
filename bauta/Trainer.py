@@ -186,7 +186,7 @@ class Trainer():
     def balancedLoss(self, predictions, targets):
         foreground = Variable(targets.data, requires_grad=False)
         background = Variable((1.0 - targets).data, requires_grad=False)
-        foreground_loss = nn.L1Loss(size_average=True, reduce=False)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10) * 2.0
+        foreground_loss = nn.L1Loss(size_average=True, reduce=False)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10) * 3.0
         background_loss = nn.L1Loss(size_average=True, reduce=False)(background * predictions, background * targets).mean() / (background.mean() + 1e-10) * 1.0
         if self.visual_logging and len(targets.size()) == 4:
             self.logBatch(foreground, 'Tar.Fore.')
@@ -214,6 +214,12 @@ class Trainer():
         loss_refiner = self.balancedLoss(predicted_refined_mask, target_mask_scaled_2) * 0.5
         total_loss = loss_mask + loss_refiner# + loss_classifier
         return total_loss, loss_mask, loss_refiner, loss_classifier, loss_classifier2.float()
+
+    def trainClassifierOnly(self):
+        self.classifiers = self.cuda_utils.cudify([self.loadClassificationModel()], self.gpu)[0]
+        optimizer_classifier = self.buildOptimizer(self.classifiers, 0.1)
+        best_test_loss, best_classifier_test_loss = self.testLoss()
+
 
     def train(self):
         self.model = self.cuda_utils.cudify([self.loadModel()], self.gpu)[0]

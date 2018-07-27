@@ -21,6 +21,8 @@ class DatasetUtils(object):
         if mask.sum() > 10.00:
             mask = (mask * 255).astype(np.uint8)
             _, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
+            if len(contours) == 0:
+                return None
             x, y, w, h = cv2.boundingRect(contours[0])
             return torch.IntTensor([class_index, x, y, x + w, y + h])
 

@@ -109,11 +109,20 @@ class DataAugmentationDataset(Dataset):
 
     def imageWithinInputDimensions(self, image):
         image_info = ImageInfo(image)
+        width = None
+        height = None
         if image_info.width > constants.input_width:
-            image = cv2.resize(image, (constants.input_width, int(constants.input_width / image_info.aspect_ratio)))
-        image_info = ImageInfo(image)
+            width = constants.input_width
+            height = int(constants.input_width / image_info.aspect_ratio)
         if image_info.height > constants.input_height:
-            image = cv2.resize(image, (int(constants.input_height * image_info.aspect_ratio), constants.input_height))
+            width = int(constants.input_height * image_info.aspect_ratio)
+            height = constants.input_height
+        if width is not None and height is not None:
+          if width == constants.input_width + 1:
+            width = constants.input_width
+          if height == constants.input_height + 1:
+            height = constants.input_height
+          image = cv2.resize(image, (width, height))
         return image
 
     def objectInClass(self, index, class_index, background_classes=False):
@@ -179,6 +188,7 @@ class DataAugmentationDataset(Dataset):
         input_image = self.system_utils.tryToRun(self.randomBackground, \
             lambda result: result is not None, \
             constants.max_image_retrieval_attempts)
+        image_info = ImageInfo(input_image)
         target_masks = self.environment.blankMasks(self.config.classes)
         original_object_areas = torch.zeros(len(self.config.classes))
         #  bounding_boxes = torch.zeros((self.config.max_classes_per_image * self.config.max_objects_per_class, 5)).int()
@@ -187,19 +197,20 @@ class DataAugmentationDataset(Dataset):
         for object_index, (class_index, class_object) in enumerate(class_indexes_and_objects):
             if self.config.classes[class_index] in self.config.special_composition_classes:
               composer = self.config.special_composition_classes[self.config.classes[class_index]]
-              special_class_image, only_item_composition, hue = composer.compose(class_object)
-              homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(special_class_image))
-              distorted_class_object = self.image_distortions.distortImage(special_class_image, homography_matrix)
+              composed_image, only_item_composition, hue = composer.compose(class_object)
+              homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(composed_image))
+              distorted_class_object = self.image_distortions.distortImage(composed_image, homography_matrix)
               extra_class_object = self.image_distortions.distortImage(only_item_composition, homography_matrix)
+              extra_class_mask = self.image_utils.getAlphaImageFromFlattening(extra_class_object)
             else:
               distorted_class_object = self.image_distortions.distortImage(class_object)
             bounding_box = self.dataset_utils.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
             bounding_boxes[object_index:object_index+1, :] = bounding_box
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
-            if self.config.classes[class_index] == 'dress':
-              input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0, extra_class_object)
-            else:
-              input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
+            input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
+            if self.config.classes[class_index] in self.config.special_composition_classes:
+                print(f'ALLORA {extra_class_mask.sum()}')
+                object_mask = extra_class_mask
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
             classes_in_input.add(class_index)
         if self.visual_logging:
@@ -216,14 +227,20 @@ class DataAugmentationDataset(Dataset):
         index_path_real, index_path = self.environment.indexPathReal(index, self.config.is_train, clean_dir=True)
         input_image = cv2.imread(self.environment.inputFilenamePath(index_path_real), cv2.IMREAD_COLOR)
         target_masks, class_indexes = self.environment.retrieveMasks(index_path_real, self.config.classes)
-        homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(input_image))
-        input_image = self.image_distortions.distortImage(input_image, homography_matrix)
-        print(f'{(target_masks.shape)} vs {type(class_indexes)}')
-        for class_index in class_indexes:
+        image_info = ImageInfo(input_image)
+        if np.random.uniform(0, 1) < 0.5:
+          background = self.randomBackground()
+          homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(input_image))
+          input_image = self.image_distortions.distortImage(input_image, homography_matrix)
+          blank_mask = self.image_utils.blankImage(image_info.width, image_info.height, 1)[:, :, 0]
+          blank_mask[:] = 255
+          input_image, _ = self.image_utils.pasteRGBAimageIntoRGBimage(input_image, background, 0, 0, mask_image=blank_mask)
+
+          for class_index in class_indexes:
             target_masks[:, :, class_index : class_index + 1] = \
                 self.image_distortions.distortImage(target_masks[:, :, class_index : class_index + 1], homography_matrix).reshape(constants.input_width, constants.input_height, 1)
-        self.environment.writeMaskFiles(index_path, target_masks, class_indexes, self.config.classes)
-        self.environment.writeInputFile(index_path, input_image)
+          self.environment.writeMaskFiles(index_path, target_masks, class_indexes, self.config.classes)
+          self.environment.writeInputFile(index_path, input_image)
         bounding_boxes, original_object_areas = self.dataset_utils.createBoundingBoxesAndObjectAreas(index_path)
         return input_image, target_masks, bounding_boxes
 
