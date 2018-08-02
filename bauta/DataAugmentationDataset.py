@@ -211,6 +211,9 @@ class DataAugmentationDataset(Dataset):
             if self.config.classes[class_index] in self.config.special_composition_classes:
                 object_mask = extra_class_mask
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
+            # removes the current image from the existing masks that overlap it
+            for current_class_in_input in classes_in_input - {class_index}:
+                self.subtractSubMaskFromMainMask(target_masks, object_mask, current_class_in_input)
             classes_in_input.add(class_index)
         if self.visual_logging:
             cv2.imshow(f'Before Distortion', input_image)
