@@ -201,7 +201,7 @@ class DataAugmentationDataset(Dataset):
               homography_matrix = self.image_distortions.getHomographyMatrix(ImageInfo(composed_image))
               distorted_class_object = self.image_distortions.distortImage(composed_image, homography_matrix)
               extra_class_object = self.image_distortions.distortImage(only_item_composition, homography_matrix)
-              extra_class_mask = self.image_utils.getAlphaImageFromFlattening(extra_class_object)
+              extra_class_mask = self.image_utils.getAlphaChannel(extra_class_object).reshape(image_info.width, image_info.height, 1)
             else:
               distorted_class_object = self.image_distortions.distortImage(class_object)
             bounding_box = self.dataset_utils.extractConnectedComponents(class_index, distorted_class_object[:,:,3:4])
@@ -209,7 +209,6 @@ class DataAugmentationDataset(Dataset):
             original_object_areas[class_index] =  original_object_areas[class_index] + distorted_class_object[:, :, 3].sum()
             input_image, object_mask = self.image_utils.pasteRGBAimageIntoRGBimage(distorted_class_object, input_image, 0, 0)
             if self.config.classes[class_index] in self.config.special_composition_classes:
-                print(f'ALLORA {extra_class_mask.sum()}')
                 object_mask = extra_class_mask
             self.addSubMaskToMainMask(target_masks, object_mask, class_index)
             classes_in_input.add(class_index)

@@ -16,7 +16,7 @@ from bauta.Constants import constants
 
 class ImageUtils():
 
-    def _pasteImage(self, pasted_image, pasted_image_mask, image_background, x_offset, y_offset):
+    def _pasteImage(self, pasted_image, pasted_image_mask, image_background, x_offset, y_offset, include_alpha_channel=False):
         pasted_image_info = ImageInfo(pasted_image)
         image_background_info = ImageInfo(image_background)
         image_background_bbox = BoundingBox(top=0, left=0, bottom=image_background_info.height, right=image_background_info.width)
@@ -44,6 +44,9 @@ class ImageUtils():
             image_background[image_background_y_offset_from : image_background_y_offset_to, image_background_x_offset_from : image_background_x_offset_to, channel_index] = \
                     (pasted_image[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to, channel_index] * (pasted_image_mask[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to] / 255)) + \
                     (image_background[image_background_y_offset_from : image_background_y_offset_to, image_background_x_offset_from : image_background_x_offset_to, channel_index] * (1 - (pasted_image_mask[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to] / 255)))
+
+#        if include_alpha_channel:
+#            image_background[image_background_y_offset_from : image_background_y_offset_to, image_background_x_offset_from : image_background_x_offset_to, 3] = pasted_image_mask[pasted_image_y_offset_from : pasted_image_y_offset_to, pasted_image_x_offset_from : pasted_image_x_offset_to]
         return image_background
 
     def pasteRGBAimageIntoRGBimage(self, rgba_image, rgb_image, x_offset, y_offset, include_alpha_channel=False, mask_image=None, skip_mask=False):
@@ -53,7 +56,7 @@ class ImageUtils():
           object_mask = rgba_image[:, :, 3]
         else:
           object_mask = mask_image
-        rgb_image = self._pasteImage(object_rgb, object_mask, rgb_image, x_offset, y_offset)
+        rgb_image = self._pasteImage(object_rgb, object_mask, rgb_image, x_offset, y_offset)#, include_alpha_channel)
 
         image_info_rgb = ImageInfo(rgb_image)
         if not skip_mask:

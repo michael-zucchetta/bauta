@@ -186,8 +186,8 @@ class Trainer():
     def balancedLoss(self, predictions, targets):
         foreground = Variable(targets.data, requires_grad=False)
         background = Variable((1.0 - targets).data, requires_grad=False)
-        foreground_loss = nn.L1Loss(size_average=True, reduce=False)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10) * 3.0
-        background_loss = nn.L1Loss(size_average=True, reduce=False)(background * predictions, background * targets).mean() / (background.mean() + 1e-10) * 1.0
+        foreground_loss = nn.L1Loss(size_average=True, reduce=False)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10) * 1.5
+        background_loss = nn.L1Loss(size_average=True, reduce=False)(background * predictions, background * targets).mean() / (background.mean() + 1e-10) * 4.0
         if self.visual_logging and len(targets.size()) == 4:
             self.logBatch(foreground, 'Tar.Fore.')
             self.logBatch(nn.L1Loss(size_average=False, reduce=False)(foreground * predictions, foreground * targets), 'Fore loss')
@@ -205,7 +205,7 @@ class Trainer():
         classifier_predictions2 = self.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
         loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.25
-        loss_classifier2 = self.balancedLoss(classifier_predictions2, classifier_targets) * 0.5
+        loss_classifier2 = self.balancedLoss(classifier_predictions2, classifier_targets) * 0.25
         self.logBatch(mask_embeddings[:,0,:,:,:].squeeze(1), 'Embed')
         predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
         self.logBatch(predicted_refined_mask, 'Predict')

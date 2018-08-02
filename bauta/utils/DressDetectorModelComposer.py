@@ -209,8 +209,10 @@ class DressDetectorModelComposer():
         only_dress_composition = np.zeros((model_image_height, \
             max(garment_image_width, model_image_width) + \
             self.arm_spread_width_offset, model_image_colors), dtype=np.uint8)
-        only_dress_composition = self.image_utils.pasteRGBAimageIntoRGBimage(garment_image, \
-            only_dress_composition, x_offset_garment, y_offset_garment, True, skip_mask=True)
+        only_dress_composition, mask = self.image_utils.pasteRGBAimageIntoRGBimage(garment_image, \
+            only_dress_composition, x_offset_garment, y_offset_garment, skip_mask=False)
+        only_dress_composition = self.image_utils.removeAlphaChannelFromImage(only_dress_composition)
+        only_dress_composition = self.image_utils.addAlphaChannelToImage(only_dress_composition, mask)
         if show_single_leg:
             composed_image_right_leg = self.rightLeg(self.model_right_leg_image, x_offset_model, garment_image_width, \
                 model_image)
