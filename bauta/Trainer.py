@@ -15,7 +15,6 @@ import numpy as np
 
 from bauta.DataAugmentationDataset import DataAugmentationDataset
 from bauta.model.Model import Model
-from bauta.model.Classifiers import Classifiers 
 from bauta.DatasetConfiguration import DatasetConfiguration
 from bauta.utils.EnvironmentUtils import EnvironmentUtils
 from bauta.utils.ImageUtils import ImageUtils
@@ -65,33 +64,30 @@ class Trainer():
         loss_mask_average = 0.0
         loss_refiner_average = 0.0
         loss_classifier_average = 0.0
-        loss_classifier_average2 = 0.0
         iterations = 0.0
         for i, (input_images, target_mask, bounding_boxes) in enumerate(test_loader):
             input_images, target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask], self.gpu))
             if self.visual_logging:
                self.visualLoggingDataset(input_images, target_mask)
-            total_loss, loss_mask, loss_refiner, loss_classifier, loss_classifier2 =  self.computeLoss(input_images, target_mask, bounding_boxes)
+            total_loss, loss_mask, loss_refiner, loss_classifier =  self.computeLoss(input_images, target_mask, bounding_boxes)
             total_loss_average = total_loss_average + total_loss[0].data[0]
             loss_mask_average = loss_mask_average + loss_mask[0].data[0]
             loss_refiner_average = loss_refiner_average + loss_refiner[0].data[0]
             loss_classifier_average = loss_classifier_average + loss_classifier[0].data[0]
-            loss_classifier_average2 = loss_classifier_average2 + loss_classifier2[0].data[0]
             iterations = iterations + 1.0
         total_loss_average = total_loss_average / iterations
         loss_mask_average = loss_mask_average / iterations
         loss_refiner_average = loss_refiner_average / iterations
         loss_classifier_average = loss_classifier_average / iterations
-        loss_classifier_average2 = loss_classifier_average2 / iterations
         self.log(f'Test Loss -- Total Loss: {total_loss_average:{1}.{4}} -- Classifier Loss: {loss_classifier_average:{1}.{4}} -- Mask Loss: {loss_mask_average:{1}.{4}} -- Refined Mask Loss: {loss_refiner_average:{1}.{4}}')
         self.test_loss_history.append(total_loss_average)
-        return loss_mask_average + loss_refiner_average, loss_classifier_average2
+        return loss_mask_average + loss_refiner_average
 
     def log(self, text):
         self.logger.info(f'{datetime.datetime.utcnow()} -- {text}')
 
-    def testAndSaveIfImproved(self, best_test_loss, best_classifier_test_loss):
-        average_current_test_loss, average_classifier_test_loss = self.testLoss()
+    def testAndSaveIfImproved(self, best_test_loss):
+        average_current_test_loss = self.testLoss()
         if average_current_test_loss < best_test_loss:
             self.log(f'Model Improved. Previous Best Test Loss {best_test_loss:{1}.{4}} | Current Best Test Loss  {average_current_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_test_loss - average_current_test_loss) / average_current_test_loss):{1}.{4}} %')
             best_test_loss = average_current_test_loss
@@ -101,16 +97,7 @@ class Trainer():
         else:
             self.log(f'Model did *NOT* Improve. Current Best Test Loss {best_test_loss:{1}.{4}} | Current Test Loss {average_current_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_test_loss - average_current_test_loss) / average_current_test_loss):{1}.{4}} %')
 
-        if average_classifier_test_loss < best_classifier_test_loss:
-            self.log(f'Model Improved. Previous Best Test Classifier Loss {best_classifier_test_loss:{1}.{4}} | Current Best classifier Loss  {average_classifier_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_classifier_test_loss - average_classifier_test_loss) / average_classifier_test_loss):{1}.{4}} %')
-            best_classifier_test_loss = average_classifier_test_loss 
-            self.log(f'Saving model...')
-            self.environment.saveModel(self.classifiers, self.environment.best_classification_model_file)
-            self.log(f'...model saved')
-        else:
-            self.log(f'Model did *NOT* Improve. Current Best Classifier Test Loss {best_classifier_test_loss:{1}.{4}} | Current Test Loss {average_classifier_test_loss:{1}.{4}} | Improvement Change: {(100.0 * (best_classifier_test_loss - average_classifier_test_loss) / average_classifier_test_loss):{1}.{4}} %')
-
-        return best_test_loss, best_classifier_test_loss
+        return best_test_loss
 
     def loadModel(self):
         model = None
@@ -120,16 +107,6 @@ class Trainer():
             model = Model(len(self.config.classes), 32, 5, 15)                
         self.log(model)
         return model
-
-    def loadClassificationModel(self):
-        classifiers = None
-        if not self.reset_model:
-            classifiers = self.environment.loadModel(self.environment.best_classification_model_file)
-        
-        if classifiers is None:
-            classifiers = Classifiers(len(self.config.classes))
-        self.log(classifiers)
-        return classifiers 
 
     def logBatch(self, target_mask, title):
         if self.visual_logging:
@@ -159,8 +136,8 @@ class Trainer():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    def logLoss(self, total_loss, loss_mask, loss_refiner, loss_classifier, loss_classifier2, epoch, train_dataset_index, dataset_train):
-        self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] --  Total Loss: {total_loss.data[0]:{1}.{4}} -- Classifier Loss: {loss_classifier.data[0]:{1}.{4}} Classifier Loss 2 {loss_classifier2.data[0]:{1}.{4}} -- Mask Loss: {loss_mask.data[0]:{1}.{4}} -- Refined Mask Loss: {loss_refiner.data[0]:{1}.{4}}')
+    def logLoss(self, total_loss, loss_mask, loss_refiner, loss_classifier, epoch, train_dataset_index, dataset_train):
+        self.log(f'Epoch [{epoch+1}/{self.num_epochs}] -- Iter [{train_dataset_index+1}/{math.ceil(len(dataset_train)/self.batch_size)}] --  Total Loss: {total_loss.data[0]:{1}.{4}} -- Classifier Loss: {loss_classifier.data[0]:{1}.{4}} -- Mask Loss: {loss_mask.data[0]:{1}.{4}} -- Refined Mask Loss: {loss_refiner.data[0]:{1}.{4}}')
 
     def buildOptimizer(self, model, learning_rate_modifier=1.0):
         optimizer = torch.optim.SGD([ 
@@ -202,10 +179,8 @@ class Trainer():
         self.logBatch(target_mask_scaled_16, 'Target')
         loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16)# * 0.5
         classifier_predictions = self.model.classifiers([predicted_masks, embeddings_merged])
-        classifier_predictions2 = self.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
         loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.25
-        loss_classifier2 = self.balancedLoss(classifier_predictions2, classifier_targets) * 0.25
         self.logBatch(mask_embeddings[:,0,:,:,:].squeeze(1), 'Embed')
         predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
         self.logBatch(predicted_refined_mask, 'Predict')
@@ -213,21 +188,13 @@ class Trainer():
         self.logBatch(target_mask_scaled_2, 'Target')
         loss_refiner = self.balancedLoss(predicted_refined_mask, target_mask_scaled_2) * 0.5
         total_loss = loss_mask + loss_refiner# + loss_classifier
-        return total_loss, loss_mask, loss_refiner, loss_classifier, loss_classifier2.float()
-
-    def trainClassifierOnly(self):
-        self.classifiers = self.cuda_utils.cudify([self.loadClassificationModel()], self.gpu)[0]
-        optimizer_classifier = self.buildOptimizer(self.classifiers, 0.1)
-        best_test_loss, best_classifier_test_loss = self.testLoss()
-
+        return total_loss, loss_mask, loss_refiner, loss_classifier
 
     def train(self):
         self.model = self.cuda_utils.cudify([self.loadModel()], self.gpu)[0]
-        self.classifiers = self.cuda_utils.cudify([self.loadClassificationModel()], self.gpu)[0]
-        best_test_loss, best_classifier_test_loss = self.testLoss()
-        self.log(f'Initial Test Loss {best_test_loss:{1}.{4}} and best_classifier_test_loss {best_classifier_test_loss:{1}.{4}}')
+        best_test_loss = self.testLoss()
+        self.log(f'Initial Test Loss {best_test_loss:{1}.{4}}')
         optimizer = self.buildOptimizer(self.model)
-        optimizer_classifier = self.buildOptimizer(self.classifiers, 0.1)
         for epoch in range(self.num_epochs):
             self.log(f'Epoch {epoch}')
             dataset_train = DataAugmentationDataset(True, self.data_path, self.visual_logging)
@@ -240,17 +207,13 @@ class Trainer():
                 input_images, target_mask = self.cuda_utils.toVariable(self.cuda_utils.cudify([input_images, target_mask], self.gpu))
                 self.visualLoggingDataset(input_images, target_mask)
                 optimizer.zero_grad()
-                total_loss, loss_mask, loss_refiner, loss_classifier, _ =  self.computeLoss(input_images, target_mask, bounding_boxes)
+                total_loss, loss_mask, loss_refiner, loss_classifier =  self.computeLoss(input_images, target_mask, bounding_boxes)
                 total_loss.backward()
                 optimizer.step()
                 
-                optimizer_classifier.zero_grad()
-                _, _, _, _, loss_classifier2 =  self.computeLoss(input_images, target_mask, bounding_boxes)
-                loss_classifier2.backward()
-                optimizer_classifier.step()
-                self.logLoss(total_loss, loss_mask, loss_refiner, loss_classifier, loss_classifier2, epoch, train_dataset_index, dataset_train)
+                self.logLoss(total_loss, loss_mask, loss_refiner, loss_classifier, epoch, train_dataset_index, dataset_train)
                 if (train_dataset_index + 1) % 1000 is 0:
-                    best_test_loss, best_classifier_test_loss = self.testAndSaveIfImproved(best_test_loss, best_classifier_test_loss)
+                    best_test_loss = self.testAndSaveIfImproved(best_test_loss)
 
             self.environment.saveModel(self.model, f'{(epoch + 1)}.backup')
-            best_test_loss, best_classifier_test_loss = self.testAndSaveIfImproved(best_test_loss, best_classifier_test_loss)
+            best_test_loss = self.testAndSaveIfImproved(best_test_loss)
