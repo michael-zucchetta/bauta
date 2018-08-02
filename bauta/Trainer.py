@@ -164,7 +164,7 @@ class Trainer():
         foreground = Variable(targets.data, requires_grad=False)
         background = Variable((1.0 - targets).data, requires_grad=False)
         foreground_loss = nn.L1Loss(size_average=True, reduce=False)(foreground * predictions, foreground * targets).mean() / (foreground.mean() + 1e-10) * 1.5
-        background_loss = nn.L1Loss(size_average=True, reduce=False)(background * predictions, background * targets).mean() / (background.mean() + 1e-10) * 4.0
+        background_loss = nn.L1Loss(size_average=True, reduce=False)(background * predictions, background * targets).mean() / (background.mean() + 1e-10) * 4.0 # background is much more frequent
         if self.visual_logging and len(targets.size()) == 4:
             self.logBatch(foreground, 'Tar.Fore.')
             self.logBatch(nn.L1Loss(size_average=False, reduce=False)(foreground * predictions, foreground * targets), 'Fore loss')
