@@ -175,19 +175,19 @@ class Trainer():
     def computeLoss(self, input_images, target_mask, bounding_boxes):
         predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8 = self.model.forward(input_images)
         self.logBatch(predicted_masks, 'Predict')
-        target_mask_scaled_16 = (nn.AvgPool2d(16)(target_mask) > 0.5).float()#.long()#.float()
+        target_mask_scaled_16 = (nn.AvgPool2d(16)(target_mask) > 0.5).float()
         self.logBatch(target_mask_scaled_16, 'Target')
-        loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16)# * 0.5
+        loss_mask = self.balancedLoss(predicted_masks, target_mask_scaled_16)
         classifier_predictions = self.model.classifiers([predicted_masks, embeddings_merged])
         classifier_targets = (target_mask.view(target_mask.size()[0], target_mask.size()[1], -1).sum(2) > 0).float()
-        loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.5 #0.25
+        loss_classifier = self.balancedLoss(classifier_predictions, classifier_targets) * 0.5
         self.logBatch(mask_embeddings[:,0,:,:,:].squeeze(1), 'Embed')
         predicted_refined_mask = self.model.mask_refiners([input_images.size(), predicted_masks, mask_embeddings, embeddings_merged, embeddings_2, embeddings_4, embeddings_8])        
         self.logBatch(predicted_refined_mask, 'Predict')
         target_mask_scaled_2 = (nn.AvgPool2d(2)(target_mask) > 0.5).float()
         self.logBatch(target_mask_scaled_2, 'Target')
-        loss_refiner = self.balancedLoss(predicted_refined_mask, target_mask_scaled_2)# * 0.5
-        total_loss = loss_mask + loss_refiner# + loss_classifier
+        loss_refiner = self.balancedLoss(predicted_refined_mask, target_mask_scaled_2)
+        total_loss = loss_mask + loss_refiner + loss_classifier
         return total_loss, loss_mask, loss_refiner, loss_classifier
 
     def train(self):
